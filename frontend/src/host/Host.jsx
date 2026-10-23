@@ -7,10 +7,10 @@ import { unlockAudio } from "../state/sfx.js";
 import "./Host.css";
 
 const PHASES = [
-  { key: PHASE.LOBBY, label: "LOBBY", api: "lobby", desc: "QR + nickname (0:00–0:25)" },
-  { key: PHASE.RAW, label: "ROUND 1 · RAW", api: "startRaw", desc: "No protection (0:25–0:55)" },
-  { key: PHASE.SHIELD, label: "ROUND 2 · VAULT", api: "vaultOn", desc: "AegisVault ON + 75s timer" },
-  { key: PHASE.OVER, label: "PODIUM", api: "gameOver", desc: "Telemetry + SDK" },
+  { key: PHASE.LOBBY, label: "LOBBY", api: "lobby", desc: "QR + nickname (0:00–1:00)" },
+  { key: PHASE.RAW, label: "ROUND 1 · RAW", api: "startRaw", desc: "No protection (1:00–2:00)" },
+  { key: PHASE.SHIELD, label: "ROUND 2 · VAULT", api: "vaultOn", desc: "AegisVault ON (2:00–4:00)" },
+  { key: PHASE.OVER, label: "PODIUM", api: "gameOver", desc: "Results + telemetry (4:00–5:00)" },
 ];
 
 export default function Host() {

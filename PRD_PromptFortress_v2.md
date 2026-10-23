@@ -2,7 +2,7 @@ f# PRD & Spesifikasi Teknis: PromptFortress (Aegis-600) — v2
 
 **Event:** Monad Blitz Jogja Vol. 2
 **Kategori Produk:** On-Chain AI Agent Security Vault & Live Multiplayer Red-Teaming Arena
-**Target Demo:** 3 menit (180 detik) live di panggung | **Bobot Penilaian:** 50% juri teknis, 50% vote peserta lain
+**Target Demo:** 5 menit (300 detik) live di panggung | **Bobot Penilaian:** 50% juri teknis, 50% vote peserta lain
 **Status:** v2, direvisi setelah review; keputusan pasca-diskusi (model LLM, hosting, protokol WS, prosedur panggung) ada di Lampiran B. Bagian bertanda ⚠️ belum terverifikasi dan harus dicek/diukur sebelum dipakai di slide atau dijawab ke juri. Peta perubahan dari v1 ada di Lampiran A.
 
 ---
@@ -47,16 +47,16 @@ Juri teknis pasti bertanya. Jawaban v1 bolong karena split-drain sebenarnya **bi
 
 ---
 
-## 2. Skenario Demo 3 Menit: "Timed Raid Room"
+## 2. Skenario Demo 5 Menit: "Timed Raid Room"
 
-Demo dikendalikan **1 Host** di panggung lewat state machine terpusat (waktu 180 detik terkunci).
+Demo dikendalikan **1 Host** di panggung lewat state machine terpusat (waktu 300 detik terkunci).
 
 | Fase & Waktu | State | Layar Proyektor | HP Penonton | Tujuan |
 | :---- | :---- | :---- | :---- | :---- |
-| **1. Lobby** 0:00–0:25 | `LOBBY_OPEN` | QR besar (**dirender dari `BASE_URL` aktif**) + **URL pendek untuk diketik manual** + daftar nickname real-time + penjelasan 1 kalimat. **Tulis di layar: "Agen Bendahara sengaja dibuat lugu."** | Input nickname (2–12 alfanumerik), tanpa wallet | Kumpulkan 15–30 pemain |
-| **2. Ronde 1: tanpa pelindung** 0:25–0:55 | `ROUND_1_RAW` | Host klik **[Mulai Tanpa Vault]**. Serangan pertama yang tertipu langsung menguras treasury demo ke alamat milik tim. Layar merah: **BRANKAS JEBOL**, dengan angka **saldo nyata** testnet (lihat 3.6) | Kartu serangan terbuka | Tunjukkan bahwa agen yang memegang dompet langsung jebol |
-| **3. Ronde 2: AegisVault** 0:55–2:10 | `ROUND_2_SHIELD` | Host klik **[AEGIS VAULT: ON]**, timer 60 detik. Serangan masuk **antrean** (tampil di layar) lalu diproses satu per satu. Detik ke-40: juri klik **[Klaim Vendor Terdaftar]** → Jalur A. | Mesin Rakit Modus. Feedback langsung: **"Masuk antrean #n"** (<200 ms), lalu hasil akhir saat giliran diproses | Klimaks: leaderboard + timeline Proposed → Voted → Finalized live |
-| **4. Podium & Bukti** 2:10–3:00 | `GAME_OVER` | Top 3 scammer, kartu telemetri on-chain (total serangan, jumlah veto, **median** latensi hasil ukur, dana ditahan), 1 blok kode integrasi SDK | Ranking akhir + link explorer | Kunci simpati peserta + argumen utilitas untuk juri |
+| **1. Lobby** 0:00–1:00 | `LOBBY_OPEN` | QR besar (**dirender dari `BASE_URL` aktif**) + **URL pendek untuk diketik manual** + daftar nickname real-time + penjelasan 1 kalimat. **Tulis di layar: "Agen Bendahara sengaja dibuat lugu."** | Input nickname (2–12 alfanumerik), tanpa wallet | Kumpulkan 15–30 pemain |
+| **2. Ronde 1: tanpa pelindung** 1:00–2:00 | `ROUND_1_RAW` | Host klik **[Mulai Tanpa Vault]**. Serangan pertama yang tertipu langsung menguras treasury demo ke alamat milik tim. Layar merah: **BRANKAS JEBOL**, dengan angka **saldo nyata** testnet (lihat 3.6) | Kartu serangan terbuka | Tunjukkan bahwa agen yang memegang dompet langsung jebol |
+| **3. Ronde 2: AegisVault** 2:00–4:00 | `ROUND_2_SHIELD` | Host klik **[AEGIS VAULT: ON]**, timer 120 detik. Serangan masuk **antrean** (tampil di layar) lalu diproses satu per satu. Detik ke-90: juri klik **[Klaim Vendor Terdaftar]** → Jalur A. | Mesin Rakit Modus. Feedback langsung: **"Masuk antrean #n"** (<200 ms), lalu hasil akhir saat giliran diproses | Klimaks: leaderboard + timeline Proposed → Voted → Finalized live |
+| **4. Podium & Bukti** 4:00–5:00 | `GAME_OVER` | Top 3 scammer, kartu telemetri on-chain (total serangan, jumlah veto, **median** latensi hasil ukur, dana ditahan), 1 blok kode integrasi SDK | Ranking akhir + link explorer | Kunci simpati peserta + argumen utilitas untuk juri |
 
 ### 2.1 Antrean serangan: dimensioning (dihitung ulang)
 
@@ -95,10 +95,10 @@ Skor +500 adalah momen edukatif utama: dua penjaga buta teks dikelabui, tetapi s
 
 **Talk track (satu host, mengikuti fase bagian 2):**
 
-* **Fase 1 (0:00–0:25):** "Sekarang kalian jadi penyerang. Satu fakta dulu: agen Bendahara ini sengaja kami buat patuh dan mudah percaya — diumumkan terbuka, supaya yang kami uji adalah brankasnya. Scan QR, rakit kartu kalian."
-* **Fase 2 (0:25–0:55):** "Tanpa pelindung: siapa pun yang paling dulu membujuk, dompetnya jebol." Momen layar merah: bacakan angka **saldo nyata** yang terkuras dengan lantang.
-* **Fase 3 (0:55–2:10):** narasi pasif: "serangan → antrean → keputusan penjaga → konsensus on-chain". Sekitar 40 detik setelah [AEGIS VAULT: ON] (≈1:35): klik [Klaim Vendor Terdaftar] — "Penerima yang sah tidak melewati AI sama sekali: Layer 0, cair instan." Jika tombol juri gagal: `SAMPLE_ATTACK` dari HP tim + lanjutkan narasi.
-* **Fase 4 (2:10–3:00):** podium + satu kalimat utilitas: "Brankas ini modul — bisa dipasang ke dompet agen mana pun." Buka sesi tanya dengan cheat sheet (§9).
+* **Fase 1 (0:00–1:00):** "Sekarang kalian jadi penyerang. Satu fakta dulu: agen Bendahara ini sengaja kami buat patuh dan mudah percaya — diumumkan terbuka, supaya yang kami uji adalah brankasnya. Scan QR, rakit kartu kalian."
+* **Fase 2 (1:00–2:00):** "Tanpa pelindung: siapa pun yang paling dulu membujuk, dompetnya jebol." Momen layar merah: bacakan angka **saldo nyata** yang terkuras dengan lantang.
+* **Fase 3 (2:00–4:00):** narasi pasif: "serangan → antrean → keputusan penjaga → konsensus on-chain". Sekitar 90 detik setelah [AEGIS VAULT: ON] (≈3:30): klik [Klaim Vendor Terdaftar] — "Penerima yang sah tidak melewati AI sama sekali: Layer 0, cair instan." Jika tombol juri gagal: `SAMPLE_ATTACK` dari HP tim + lanjutkan narasi.
+* **Fase 4 (4:00–5:00):** podium + satu kalimat utilitas: "Brankas ini modul — bisa dipasang ke dompet agen mana pun." Buka sesi tanya dengan cheat sheet (§9).
 
 **Checklist waktu:**
 

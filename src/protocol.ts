@@ -69,10 +69,10 @@ export interface GameState {
 }
 
 export const PHASE_DURATIONS: Record<Phase, number> = {
-  LOBBY_OPEN: 25_000,
-  ROUND_1_RAW: 30_000,
-  ROUND_2_SHIELD: 75_000,
-  GAME_OVER: 50_000,
+  LOBBY_OPEN: 60_000,
+  ROUND_1_RAW: 60_000,
+  ROUND_2_SHIELD: 120_000,
+  GAME_OVER: 60_000,
 };
 
 export const PRESET_CARDS = {

@@ -6,4 +6,4 @@ export const PHASE = {
   OVER: "GAME_OVER",
 };
 
-export const ROUND_MS = { [PHASE.RAW]: 30_000, [PHASE.SHIELD]: 75_000 };
+export const ROUND_MS = { [PHASE.RAW]: 60_000, [PHASE.SHIELD]: 120_000 };

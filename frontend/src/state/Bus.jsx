@@ -218,10 +218,10 @@ export function BusProvider({ children, role: appRole }) {
   return <RoomCtx.Provider value={{ state, api, mode }}>{children}</RoomCtx.Provider>;
 }
 
-const DURATIONS = { LOBBY_OPEN: 25_000, ROUND_1_RAW: 30_000, ROUND_2_SHIELD: 75_000, GAME_OVER: 50_000 };
+const DURATIONS = { LOBBY_OPEN: 60_000, ROUND_1_RAW: 60_000, ROUND_2_SHIELD: 120_000, GAME_OVER: 60_000 };
 function mapServerState(server = {}, prev = initial()) {
   const phase = server.phase ?? prev.phase;
-  const duration = DURATIONS[phase] ?? 25_000;
+  const duration = DURATIONS[phase] ?? 60_000;
   return { phase, startedAt: Date.now() - Math.max(0, duration - (server.tMsLeft ?? duration)), vaultOn: !!server.vaultOn,
     panic: !!server.panicBlur, virtual: !!server.rehearsal, manualAttacksEnabled: !!server.manualAttacksEnabled };
 }
