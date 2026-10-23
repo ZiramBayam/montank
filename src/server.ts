@@ -169,11 +169,10 @@ function sendJoined(client: Client, player: Player): void {
 }
 
 function publicBaseUrl(request: FastifyRequest): string {
-  if (config.baseUrl) return config.baseUrl;
-  const forwardedHost = request.headers['x-forwarded-host'];
+  const forwardedHost = config.trustProxy ? request.headers['x-forwarded-host'] : undefined;
   const host = (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ?? request.headers.host;
-  if (!host) return `http://localhost:${config.port}`;
-  const forwardedProto = request.headers['x-forwarded-proto'];
+  if (!host) return config.baseUrl || `http://localhost:${config.port}`;
+  const forwardedProto = config.trustProxy ? request.headers['x-forwarded-proto'] : undefined;
   const cfVisitor = request.headers['cf-visitor'];
   let proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
   if (typeof proto === 'string') proto = proto.split(',')[0]?.trim();
@@ -181,8 +180,15 @@ function publicBaseUrl(request: FastifyRequest): string {
     try { proto = (JSON.parse(cfVisitor) as { scheme?: string }).scheme; } catch { /* use request protocol */ }
   }
   if (proto !== 'http' && proto !== 'https') proto = request.protocol;
-  try { return new URL(`${proto}://${host}`).origin; }
-  catch { return `http://localhost:${config.port}`; }
+  try {
+    const requestOrigin = new URL(`${proto}://${host}`).origin;
+    if (!config.baseUrl) return requestOrigin;
+    const configuredHost = new URL(config.baseUrl).hostname.toLowerCase();
+    const requestHost = new URL(requestOrigin).hostname.toLowerCase();
+    const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+    if (localHosts.has(configuredHost) && !localHosts.has(requestHost)) return requestOrigin;
+    return config.baseUrl;
+  } catch { return config.baseUrl || `http://localhost:${config.port}`; }
 }
 
 function sendAttackResult(attack: AttackRecord, layer: 'VICTIM' | 'LAYER0' | 'GUARDIAN', verdict: string, points: number, breakdown: string[]): void {
