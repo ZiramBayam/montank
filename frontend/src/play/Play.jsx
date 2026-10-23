@@ -10,6 +10,8 @@ const NICK_RE = /^[a-zA-Z0-9_]{2,12}$/;
 const TIER_SFX = { ATTEMPT: "t10", LAYER0: "t50", VICTIM: "t100", G1: "t250", G2: "t500", BREACH: "t1000" };
 const BOLT_MS = 380;
 const GAP_MS = 420;
+const BOOT_MS = 900;
+const BOOT_LINES = ["CONNECTING TO ARENA…", "SYNC LEDGER…", "ARMING PROMPT ENGINE…"];
 const GUARD_FALLBACK = [
   { clear: false, ms: 0 },
   { clear: false, ms: 0 },
@@ -20,6 +22,7 @@ export default function Play() {
   const { state, api, mode } = useBus();
   const [nick, setNick] = useState(() => localStorage.getItem("pf_nick") || "");
   const [joined, setJoined] = useState(false);
+  const [booting, setBooting] = useState(false);
   const [picked, setPicked] = useState([0, 1, 0]);
   const [draft, setDraft] = useState("");
   const [inFlight, setInFlight] = useState(false);
@@ -27,6 +30,7 @@ export default function Play() {
   const [now, setNow] = useState(0);
   const [error, setError] = useState("");
   const seen = useRef(new Set());
+  const bootTimer = useRef(null);
   const [localFlight, setLocalFlight] = useState(null);
 
   useEffect(() => { probeFiles(); }, []);
@@ -48,6 +52,9 @@ export default function Play() {
   useEffect(() => {
     if (state.cooldownUntil) setCoolUntil(state.cooldownUntil);
   }, [state.cooldownUntil]);
+
+  // putus timer boot saat keluar dari /play
+  useEffect(() => () => clearTimeout(bootTimer.current), []);
 
   // jam nyala tiap 200ms: cooldown + animasi arena
   useEffect(() => {
@@ -81,17 +88,50 @@ export default function Play() {
   }, [state.attacks, nick, joined, mode]);
 
   const join = () => {
+    if (booting || joined) return;
     if (!NICK_RE.test(nick)) {
       setError("2–12 letters, numbers, underscores.");
       return;
     }
     setError("");
     localStorage.setItem("pf_nick", nick);
-    api.join(nick);
-    setJoined(true);
-    setDraft("");
-    unlockAudio();
+    unlockAudio(); // sinkron — butuh gesture user, jangan dipindah ke dalam timeout
+    play("ack");
+    navigator.vibrate?.(20);
+    setBooting(true);
+    bootTimer.current = setTimeout(() => {
+      api.join(nick);
+      setJoined(true);
+      setDraft("");
+      setBooting(false);
+    }, BOOT_MS);
   };
+
+  if (booting && !joined) {
+    return (
+      <div className="play">
+        <header className="phead">
+          <Sprite name="shield" size={26} />
+          <b>PROMPTFORTRESS</b>
+        </header>
+        <section className="card pjoin">
+          <h1>Join The Raid</h1>
+          <div className="boot" role="status" aria-live="polite">
+            <span className="blink-idle">
+              <Sprite name="bolt" size={22} />
+            </span>
+            {BOOT_LINES.map((line, i) => (
+              <span key={line} className="bootline slide-in-8" style={{ animationDelay: `${i * 240}ms` }}>
+                {line}
+              </span>
+            ))}
+            <div className="cd" aria-hidden="true"><i /></div>
+            {mode !== "real" && <p className="dim center">DEMO MODE — backend not connected</p>}
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   if (!joined) {
     return (
@@ -106,13 +146,14 @@ export default function Play() {
           <input
             value={nick}
             onChange={(e) => setNick(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") join(); }}
             placeholder="e.g. rampok_budi"
             maxLength={12}
             autoCapitalize="off"
             autoComplete="off"
           />
           {(error || state.joinError) && <p className="err">{error || state.joinError}</p>}
-          <button className="btn btn--coin big" onClick={join} disabled={!nick.trim()}>
+          <button className="btn btn--coin big" onClick={join} disabled={booting || !nick.trim()}>
             Join
           </button>
           <p className="dim center">Nickname is saved on this device. No wallet connection.</p>

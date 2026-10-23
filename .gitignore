@@ -4,3 +4,4 @@ dist/
 *.log
 data/
 claims.json
+devserver.log

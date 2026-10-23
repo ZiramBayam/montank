@@ -4,6 +4,7 @@
   grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
   gap: 14px;
   padding: 14px;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
   max-width: 1200px;
   margin: 0 auto;
 }

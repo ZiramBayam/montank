@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 12px 60px;
+  padding: 14px 12px calc(60px + env(safe-area-inset-bottom));
   max-width: 520px;
   margin: 0 auto;
 }
@@ -45,6 +45,21 @@
 .pjoin input:focus { border-color: var(--yellow); }
 
 .big { font-size: 1rem; padding: 14px; width: 100%; }
+
+/* panel boot saat join (8-bit) */
+.boot {
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.bootline { display: block; font-family: var(--f-score); font-size: 1.05rem; }
+.boot .cd { width: 100%; }
+.boot .cd > i { background: var(--purple); animation: cd-fill 900ms steps(18, jump-none) both; }
+@keyframes cd-fill { from { width: 0; } }
 
 /* ===== 1 leaderboard ===== */
 .iboard { padding: 12px 14px; }
@@ -225,9 +240,22 @@
   margin-top: 6px;
 }
 
+/* tuning HP kecil (≤480px) */
+@media (max-width: 480px) {
+  .play { gap: 10px; padding-left: 10px; padding-right: 10px; }
+  .phead { padding: 8px 10px; }
+  .phead .me b { font-size: 0.85rem; }
+  .me-stats { gap: 10px; }
+  .pjoin { padding: 16px 12px 20px; }
+  .arena { padding: 10px 10px 8px; }
+  .astatus { font-size: 1.05rem; }
+  .fire textarea { font-size: 1.15rem; }
+  .hrow { padding: 8px 8px; }
+}
+
 /* reduced motion: semua animasi arena jadi kondisi akhir statis */
 @media (prefers-reduced-motion: reduce) {
-  .bolt.fly, .gseat.st2, .gseat.st3, .spark:not(.off) { animation: none !important; }
+  .bolt.fly, .gseat.st2, .gseat.st3, .spark:not(.off), .bootline, .boot .cd > i { animation: none !important; }
   .spark:not(.off) { opacity: 0; }
   .arena.sticky { position: static; }
 }

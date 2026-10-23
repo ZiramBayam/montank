@@ -17,14 +17,15 @@
 /* chip panic (indikator hotkey Spacebar) */
 .hostchip {
   position: fixed;
-  bottom: 12px; left: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom)); left: 12px;
   z-index: 40;
   font-family: var(--f-score);
   background: rgba(0, 0, 0, 0.7);
   border: var(--border);
   color: var(--paper-dim);
-  padding: 6px 12px;
+  padding: 10px 16px;
   cursor: pointer;
+  user-select: none; -webkit-user-select: none;
 }
 .hostchip:hover { color: var(--paper); }
 
@@ -214,4 +215,22 @@
   font-family: var(--f-score); font-size: 1rem; line-height: 1.45;
   padding: 12px; margin: 0; white-space: pre-wrap; color: var(--paper-dim);
   background: var(--bg);
+}
+
+/* layar TV: telepon hosts layar ini → penutup penuh CSS murni */
+@media (max-width: 700px) {
+  .stage { padding: 10px; }
+  .stage::after {
+    content: "STAGE SCREEN — meant for the LED TV / jury display. Open /play or /host on your phone.";
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: var(--bg);
+    color: var(--yellow);
+    font-family: var(--f-pixel);
+    font-size: 1rem;
+    line-height: 1.7;
+    text-align: center;
+    padding: 16vh 24px 0;
+  }
 }
