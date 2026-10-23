@@ -18,7 +18,7 @@ const CONFIG = {
   vaultMon: Number(qs.get("vault")) || 24.5, // diganti saldo nyata saat backend memimpin
   rawMon: Number(qs.get("raw")) || 6.0,
   servingMs: 1200, // PRD 2.1: layanan ~1 serangan / 1,2 s
-  virtual: !qs.get("ws") && !import.meta.env.VITE_WS_URL,
+  virtual: false,
 };
 
 const BOTS = [
@@ -90,76 +90,149 @@ const addScore = (players, nick, pts) =>
 
 export function BusProvider({ children }) {
   const [state, setState] = useState(initial);
-  const [mode, setMode] = useState(CONFIG.wsUrl ? "connecting" : "mock");
+  const [mode, setMode] = useState("connecting");
   const ref = useRef(state);
   useEffect(() => {
     ref.current = state;
   }, [state]);
   const ws = useRef(null);
+  const outbox = useRef([]);
   const push = useCallback((fn) => setState((prev) => fn(prev)), []);
 
-  const cmd = useCallback(
-    (type, payload = {}) => {
-      if (mode === "real" && ws.current?.readyState === 1) {
-        ws.current.send(JSON.stringify({ type, ...payload }));
-        return;
-      }
-      // jelaskan intent sebagai perubahan state (mock)
-      applyHost(type, payload, push, ref);
-    },
-    [mode, push],
-  );
+  const send = useCallback((message) => {
+    if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify(message));
+    else if (ws.current?.readyState === WebSocket.CONNECTING) outbox.current.push(message);
+  }, []);
 
   useEffect(() => {
-    if (!CONFIG.wsUrl) return;
     let dead = false;
-    const socket = new WebSocket(CONFIG.wsUrl);
+    const role = window.location.pathname.replace(/\/+$/, "").slice(1) || "stage";
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const url = new URL(CONFIG.wsUrl || `${protocol}//${window.location.host}/ws/${role}`);
+    if (!CONFIG.wsUrl && role === "host" && qs.has("t")) url.searchParams.set("t", qs.get("t"));
+    const socket = new WebSocket(url);
     ws.current = socket;
-    socket.onopen = () => !dead && setMode("real");
+    socket.onopen = () => {
+      if (dead) return;
+      setMode("real");
+      const playerId = localStorage.getItem("pf_player_id");
+      if (role === "play" && playerId) socket.send(JSON.stringify({ type: "rejoin", playerId }));
+      for (const message of outbox.current.splice(0)) socket.send(JSON.stringify(message));
+    };
     socket.onmessage = (ev) => {
       if (dead) return;
       try {
         const m = JSON.parse(ev.data);
-        if (m.type === "room") setState((prev) => ({ ...prev, ...m.state, virtual: false }));
-        else if (m.type === "queue") setState((prev) => ({ ...prev, queueWaiting: m.waiting }));
-        else if (m.type === "feed") push((prev) => ({ ...prev, attacks: [m.item, ...prev.attacks].slice(0, 60) }));
-        else if (m.type === "phase") setState((prev) => ({ ...prev, phase: m.phase, startedAt: Date.now() }));
-        else if (m.type === "panic") setState((prev) => ({ ...prev, panic: true }));
+        if (m.type === "state") push((prev) => ({ ...prev, ...mapServerState(m, prev) }));
+        else if (m.type === "joined") {
+          localStorage.setItem("pf_player_id", m.playerId);
+          localStorage.setItem("pf_nick", m.nickname);
+          push((prev) => ({ ...prev, playerId: m.playerId, nickname: m.nickname, ...mapServerState(m.state, prev) }));
+        }
+        else if (m.type === "join_rejected") {
+          localStorage.removeItem("pf_player_id");
+          push((prev) => ({ ...prev, joinError: m.reason }));
+        }
+        else if (m.type === "scoreboard") push((prev) => ({ ...prev, players: mergePlayers(prev.players, m.top), myScore: m.score, myRank: m.rank }));
+        else if (m.type === "player_joined") push((prev) => ({ ...prev, playerCount: m.count }));
+        else if (m.type === "queue" || m.type === "queue_update") push((prev) => ({ ...prev, queueWaiting: m.count ?? m.queuePos ?? 0 }));
+        else if (m.type === "killfeed") push((prev) => ({ ...prev, attacks: upsertAttack(prev.attacks, m.entry) }));
+        else if (m.type === "guardian_decision") push((prev) => updateGuard(prev, m));
+        else if (m.type === "treasury") push((prev) => ({ ...prev, bank: { ...prev.bank, vaultMon: Number(m.balance) || 0, heldMon: Number(m.held) || 0 } }));
+        else if (m.type === "pipeline") push((prev) => updatePipeline(prev, m));
+        else if (m.type === "panic_blur") push((prev) => ({ ...prev, panic: Boolean(m.active) }));
+        else if (m.type === "attack_ack") push((prev) => ({ ...prev, activeAttackId: m.attackId }));
+        else if (m.type === "attack_result") push((prev) => updateAttackResult(prev, m));
+        else if (m.type === "attack_rejected") push((prev) => ({ ...prev, attackError: m.reason, activeAttackId: null }));
+        else if (m.type === "cooldown") push((prev) => ({ ...prev, cooldownUntil: m.untilEpochSec * 1000 }));
+        else if (m.type === "host_status") push((prev) => ({ ...prev, hostAuthorized: !!m.authorized, hostStatus: m, playerCount: m.players ?? prev.playerCount }));
+        else if (m.type === "host_error" || m.type === "host_alert") push((prev) => ({ ...prev, hostMessage: m.message }));
       } catch { /* payload bukan JSON: abaikan */ }
     };
-    socket.onerror = () => setMode("mock");
-    socket.onclose = () => !dead && setMode("mock");
+    socket.onerror = () => !dead && setMode("disconnected");
+    socket.onclose = () => !dead && setMode("disconnected");
     return () => {
       dead = true;
       socket.close();
     };
   }, [push]);
 
-  useEffect(() => {
-    if (mode !== "mock") return;
-    const t = setInterval(() => tickEngine(push, ref, CONFIG.servingMs), 250);
-    return () => clearInterval(t);
-  }, [mode, push]);
-
   const api = useMemo(
     () => ({
-      join: (nick) => cmd("join", { nick }),
-      attack: (payload) => cmd("attack", payload),
-      panic: () => cmd("panic"),
+      join: (nickname) => {
+        push((prev) => ({ ...prev, joinError: null }));
+        send({ type: "join", nickname });
+      },
+      attack: (payload) => {
+        push((prev) => ({ ...prev, attackError: null }));
+        send({ type: "attack", payload: payload.payload ?? {}, manual: payload.rawText });
+      },
+      panic: () => send({ type: "panic" }),
       host: {
-        lobby: () => cmd("host:lobby"),
-        startRaw: () => cmd("host:raw"),
-        vaultOn: () => cmd("host:vaultOn"),
-        gameOver: () => cmd("host:over"),
-        claimVendor: () => cmd("host:claimVendor"),
-        teamAttack: () => cmd("host:teamAttack"),
-        crowd: () => cmd("host:crowd"),
+        lobby: () => send({ type: "host_cmd", cmd: "GOTO:LOBBY_OPEN" }),
+        startRaw: () => send({ type: "host_cmd", cmd: "ROUND1" }),
+        vaultOn: () => send({ type: "host_cmd", cmd: "VAULT_ON" }),
+        gameOver: () => send({ type: "host_cmd", cmd: "GOTO:GAME_OVER" }),
+        claimVendor: () => send({ type: "host_cmd", cmd: "JUDGE_CLAIM_A" }),
+        claimVendorB: () => send({ type: "host_cmd", cmd: "JUDGE_CLAIM_B" }),
+        teamAttack: () => send({ type: "host_cmd", cmd: "SAMPLE_ATTACK" }),
+        crowd: () => send({ type: "host_cmd", cmd: "SIM_CROWD", count: 5 }),
+        manualAttacks: (enabled) => send({ type: "host_cmd", cmd: "MANUAL_ATTACKS", enabled }),
       },
     }),
-    [cmd],
+    [send],
   );
 
   return <RoomCtx.Provider value={{ state, api, mode }}>{children}</RoomCtx.Provider>;
+}
+
+const DURATIONS = { LOBBY_OPEN: 25_000, ROUND_1_RAW: 30_000, ROUND_2_SHIELD: 75_000, GAME_OVER: 50_000 };
+function mapServerState(server = {}, prev = initial()) {
+  const phase = server.phase ?? prev.phase;
+  const duration = DURATIONS[phase] ?? 25_000;
+  return { phase, startedAt: Date.now() - Math.max(0, duration - (server.tMsLeft ?? duration)), vaultOn: !!server.vaultOn,
+    panic: !!server.panicBlur, virtual: !!server.rehearsal, manualAttacksEnabled: !!server.manualAttacksEnabled };
+}
+function mergePlayers(previous, rows = []) {
+  return Object.fromEntries(rows.map((p) => [p.nickname, { score: p.score ?? 0 }]));
+}
+function tierFor(entry = {}) {
+  if (entry.verdict === "RAW_BREACH" || entry.verdict === "EXECUTED") return "BREACH";
+  if (entry.verdict === "VETOED") return (entry.points ?? 0) >= 500 ? "G2" : (entry.points ?? 0) >= 250 ? "G1" : "VICTIM";
+  if (entry.verdict === "REJECTED") return (entry.points ?? 0) >= 50 ? "LAYER0" : "ATTEMPT";
+  if (["PROPOSAL_FAILED", "LIVE_CHAIN_UNAVAILABLE"].includes(entry.verdict)) return "LAYER0";
+  return "ATTEMPT";
+}
+function upsertAttack(attacks, entry = {}) {
+  const id = entry.attackId ?? entry.id;
+  if (!id) return attacks;
+  const previous = attacks.find((a) => a.id === id);
+  const tier = tierFor(entry);
+  const item = { ...previous, id, nick: entry.nickname ?? previous?.nick ?? "—", text: entry.text ?? previous?.text ?? "",
+    labels: [entry.source === "fallback parser" ? "fallback parser" : null, entry.source === "rehearsal" || entry.rehearsal ? "REHEARSAL" : null, entry.simulated ? "SIM" : null].filter(Boolean),
+    verdict: { tier, points: entry.points ?? previous?.verdict?.points ?? 0 }, guards: previous?.guards ?? null,
+    timeline: previous?.timeline ?? null, amountMon: Number(entry.amount) || null, ts: Date.now(), virtual: !!entry.rehearsal };
+  return [item, ...attacks.filter((a) => a.id !== id)].slice(0, 60);
+}
+function updateGuard(prev, m) {
+  const target = prev.attacks.find((a) => a.id === (m.attackId ?? m.actionId));
+  if (!target) return prev;
+  const guards = [...(target.guards ?? Array(3).fill(null))];
+  guards[m.guardianId - 1] = { clear: m.decision === "CLEAR", ms: m.measuredMs ?? 0 };
+  return { ...prev, attacks: prev.attacks.map((a) => a.id === target.id ? { ...a, guards } : a) };
+}
+function updatePipeline(prev, m) {
+  const target = prev.attacks.find((a) => a.id === (m.attackId ?? m.actionId));
+  if (!target) return prev;
+  const timeline = { ...(target.timeline ?? {}) };
+  if (m.commitState === "Proposed") timeline.proposed = m.measuredMs ?? 0;
+  else if (m.commitState === "Voted") timeline.voted = m.measuredMs ?? 0;
+  else if (m.commitState === "Finalized") timeline.finalized = m.measuredMs ?? 0;
+  return { ...prev, attacks: prev.attacks.map((a) => a.id === target.id ? { ...a, timeline, txUrl: m.txHash } : a) };
+}
+function updateAttackResult(prev, m) {
+  const tier = m.verdict === "RAW_BREACH" || m.verdict === "EXECUTED" ? "BREACH" : m.verdict === "VETOED" ? (m.points >= 500 ? "G2" : m.points >= 250 ? "G1" : "VICTIM") : m.layer === "LAYER0" ? "LAYER0" : "ATTEMPT";
+  return { ...prev, attacks: prev.attacks.map((a) => a.id === m.attackId ? { ...a, verdict: { tier, points: m.points }, labels: [...new Set([...a.labels, ...(m.breakdown ?? []).filter((x) => /fallback parser|rehearsal/i.test(x))])] } : a), activeAttackId: null, lastAttackResult: m };
 }
 
 /* =================== Aksi (dipakai mode real & mock) =================== */
@@ -209,7 +282,7 @@ function applyHost(type, p, push, ref) {
     case "host:teamAttack":
       injectAttack(push, ref, { nick: pick(BOTS), simLabel: "Example Attack" });
       break;
-    case "host:crowd":
+        case "host:crowd":
       push((st) => ({ ...st, players: { ...st.players, ...fillBots(st), ...fillBots(st) } }));
       break;
     default:

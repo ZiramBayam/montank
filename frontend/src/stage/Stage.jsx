@@ -115,7 +115,7 @@ function TopBar({ state, leftS, mode }) {
         The Cashier Agent is intentionally gullible.
       </span>
       <span className={`badge ${mode === "real" ? "" : "badge--sim"}`}>
-        {mode === "real" ? "LIVE" : "DEMO MODE"}
+        {mode === "real" ? (state.virtual ? "REHEARSAL" : "LIVE") : mode === "connecting" ? "CONNECTING" : "OFFLINE"}
       </span>
     </header>
   );
@@ -147,7 +147,7 @@ function Lobby({ state }) {
         <p className="dim blink-idle">ATTACK TO SCORE — ROOM IS OPEN</p>
       </div>
       <div className="board card">
-        <h2>Players joined ({joined.length})</h2>
+        <h2>Players joined ({state.playerCount ?? joined.length})</h2>
         <div className="rows">
           {joined.map((n) => (
             <div className="row slide-in-8" key={n}>
@@ -353,7 +353,7 @@ function JuryButtons({ api }) {
       <button className="btn btn--go" onClick={api.host.claimVendor}>
         Claim Registered Vendor
       </button>
-      <button className="btn" onClick={api.host.claimVendor} title="Path B 3/3 clear — used when judges test a valid claim">
+      <button className="btn" onClick={api.host.claimVendorB} title="Path B 3/3 clear — used when judges test a valid claim">
         Claim Verified New Vendor
       </button>
     </div>

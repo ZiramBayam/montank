@@ -30,6 +30,24 @@ export default function Play() {
   const [localFlight, setLocalFlight] = useState(null);
 
   useEffect(() => { probeFiles(); }, []);
+  useEffect(() => {
+    if (state.playerId) {
+      setNick(state.nickname || localStorage.getItem("pf_nick") || "");
+      setJoined(true);
+    }
+  }, [state.playerId, state.nickname]);
+  useEffect(() => {
+    if (state.lastAttackResult) setInFlight(false);
+  }, [state.lastAttackResult]);
+  useEffect(() => {
+    if (state.attackError) {
+      setInFlight(false);
+      setError(state.attackError);
+    }
+  }, [state.attackError]);
+  useEffect(() => {
+    if (state.cooldownUntil) setCoolUntil(state.cooldownUntil);
+  }, [state.cooldownUntil]);
 
   // jam nyala tiap 200ms: cooldown + animasi arena
   useEffect(() => {
@@ -93,12 +111,12 @@ export default function Play() {
             autoCapitalize="off"
             autoComplete="off"
           />
-          {error && <p className="err">{error}</p>}
+          {(error || state.joinError) && <p className="err">{error || state.joinError}</p>}
           <button className="btn btn--coin big" onClick={join} disabled={!nick.trim()}>
             Join
           </button>
           <p className="dim center">Nickname is saved on this device. No wallet connection.</p>
-          {mode !== "real" && <p className="dim center">DEMO MODE — backend not connected</p>}
+          {mode !== "real" && <p className="dim center">{mode === "connecting" ? "Connecting to backend…" : "Backend disconnected"}</p>}
         </section>
       </div>
     );
@@ -107,8 +125,8 @@ export default function Play() {
   const standing = Object.entries(state.players)
     .map(([n, p]) => ({ n, s: p.score }))
     .sort((a, b) => b.s - a.s);
-  const rank = standing.findIndex((r) => r.n === nick) + 1;
-  const myScore = state.players[nick]?.score ?? 0;
+  const rank = state.myRank ?? (standing.findIndex((r) => r.n === nick) + 1);
+  const myScore = state.myScore ?? state.players[nick]?.score ?? 0;
   const over = state.phase === PHASE.OVER;
   const raw = state.phase === PHASE.RAW;
   const myHistory = state.attacks.filter((a) => a.nick === nick);
@@ -123,7 +141,12 @@ export default function Play() {
       return;
     }
     setError("");
-    api.attack({ nick, rawText: text });
+            const fromCards = text === composeAttack(picked);
+            api.attack({ payload: fromCards ? {
+              kedok: ROWS[0].cards[picked[0]].text,
+              alasan: ROWS[1].cards[picked[1]].text,
+              taktik: ROWS[2].cards[picked[2]].text,
+            } : {}, rawText: fromCards ? undefined : text });
     setInFlight(true);
     play("ack");
     navigator.vibrate?.(15);
@@ -235,7 +258,7 @@ export default function Play() {
               {queueFull ? "Queue full" : inFlight ? "Guards judging…" : cooling ? `Cooldown ${coolLeft}s` : "ATTACK"}
             </button>
             {cooling && <div className="cd"><i style={{ width: `${(coolLeft / QUEUE.COOLDOWN_S) * 100}%` }} /></div>}
-            {error && <p className="err">{error}</p>}
+            {(error || state.attackError) && <p className="err">{error || state.attackError}</p>}
           </section>
         </>
       )}

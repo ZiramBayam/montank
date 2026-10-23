@@ -31,7 +31,7 @@ export default function Host() {
         <Sprite name="shield" size={24} />
         <b>HOST PANEL</b>
         <span className={`badge ${mode === "real" ? "" : "badge--sim"}`}>
-          {mode === "real" ? "WS: LIVE" : "MOCK (no backend)"}
+          {mode === "real" ? (state.virtual ? "WS: REHEARSAL" : "WS: LIVE") : mode === "connecting" ? "CONNECTING" : "BACKEND OFFLINE"}
         </span>
         <a className="badge" href="/stage" target="_stage" rel="noreferrer">open /stage ↗</a>
         <a className="badge" href="/play" target="_play" rel="noreferrer">open /play ↗</a>
@@ -61,7 +61,7 @@ export default function Host() {
           <button className="btn btn--go" onClick={() => act(api.host.claimVendor, "jury: claim registered vendor")}>
             Claim Registered Vendor (Path A)
           </button>
-          <button className="btn btn--go" onClick={() => act(api.host.claimVendor, "jury: claim verified new vendor")}>
+          <button className="btn btn--go" onClick={() => act(api.host.claimVendorB, "jury: claim verified new vendor")}>
             Claim Verified New Vendor (Path B)
           </button>
           <button className="btn" onClick={() => act(api.host.teamAttack, "team example attack")}>
@@ -73,6 +73,9 @@ export default function Host() {
           <button className="btn btn--stop" onClick={() => act(api.panic, HONEST.SENSOR)}>
             Panic Blur [Spacebar]
           </button>
+          <button className={`btn ${state.manualAttacksEnabled ? "btn--primary" : ""}`} onClick={() => act(() => api.host.manualAttacks(!state.manualAttacksEnabled), `manual attacks ${state.manualAttacksEnabled ? "off" : "on"}`)}>
+            Manual attacks: {state.manualAttacksEnabled ? "ON" : "OFF"}
+          </button>
         </div>
         <p className="dim">
           Every host action adds honesty labels to the kill-feed: [{HONEST.TEAMATTACK}] [{HONEST.SIM}].
@@ -81,13 +84,15 @@ export default function Host() {
 
       <section className="card hzone">
         <h2 className="purple">3 · Status</h2>
+        {state.hostAuthorized === false && <p className="num-bad">Host read-only. Open this page with ?t=HOST_TOKEN to enable controls.</p>}
+        {state.hostMessage && <p className="dim">{state.hostMessage}</p>}
         <div className="hgrid stats">
           <Stat k="Phase" v={state.phase} />
           <Stat k="Vault" v={state.vaultOn ? "ON" : "OFF"} ok={state.vaultOn} />
           <Stat k="Vault balance" v={`${state.bank.vaultMon} MON`} warn={lowBank} virtual={state.virtual} />
           <Stat k="Funds held" v={`${state.bank.heldMon} MON`} virtual={state.virtual} />
           <Stat k="Queue" v={`${state.queueWaiting}/12`} warn={state.queueWaiting >= 10} />
-          <Stat k="Players" v={Object.keys(state.players).length} />
+          <Stat k="Players" v={state.playerCount ?? Object.keys(state.players).length} />
           <Stat k="Veto / Clear" v={`${state.vetoCount} / ${state.clearCount}`} />
         </div>
         {lowBank && <p className="num-bad">WARNING: EOA/vault balance low — request MON from the committee (PRD 3.6)</p>}

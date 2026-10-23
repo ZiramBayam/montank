@@ -5,11 +5,10 @@ jenis gaya "Neobrutalism Dark × 8-bit" (lihat `DESIGN.md`).
 
 ## Jalankan
 
-```bash
-npm install
-npm run dev                     # buka http://localhost:5173/stage
-npm run build && npm run preview
-```
+From the project root, install with `npm install --prefix frontend`. For hot reload,
+run `npm run frontend:dev` while the backend runs on port 3000. For one combined
+deployment, run `npm run build` at the root and then `npm start`; Fastify serves
+the built frontend and backend together on port 3000.
 
 ## Rute (SPA fallback)
 
@@ -21,13 +20,13 @@ npm run build && npm run preview
 
 ## Mode koneksi
 
-- **Mock (default, jalan offline)** — mesin simulasi yang mengikuti PRD 2.1
-  (antrean: 1 aktif/pemain, maks 12, cooldown 25 dtk), 2.2 (poin 6 tier),
-  dan 6.1 (P1 buta teks 5–15 ms, P2 buta teks 40–90 ms, P3 scanner 120–220 ms).
-  Semua angka ditandai `VIRTUAL` karena tidak digiring on-chain.
-- **Real** — isi `VITE_WS_URL` env atau `?ws=wss://...` untuk memandu pesan
-  backend; kontrak pesan: `docs/ws-schema.md`. HP dan proyektor sama sekali
-  tidak memanggil RPC Monad (PRD 3.5).
+- Frontend connects to `/ws/play`, `/ws/stage`, or `/ws/host` on the same origin.
+  During Vite development, `/ws` is proxied to backend port 3000.
+- Host authorization is supplied in the page URL as `?t=<HOST_TOKEN>`; the token
+  is never baked into the frontend build. Without it, `/host` is read-only.
+- The UI consumes the backend WebSocket protocol and never calls Monad RPC from
+  the browser (PRD 3.5). Values are marked `VIRTUAL` when the backend is in
+  rehearsal mode.
 
 ## Aset
 
@@ -44,10 +43,7 @@ npm run build && npm run preview
 
 ## Verifikasi cepat
 
-```bash
-npm run lint     # 0 temuan
-npm run build    # sukses
-```
+Build from the project root with `npm run build`.
 
 Manual: buka `/host` → klik [RONDE 1 · RAW] → lihat layar JEBOL → [RONDE 2 · VAULT]
 → tier poin muncul di kill-feed + hati penjaga di spotlight → tombol juri

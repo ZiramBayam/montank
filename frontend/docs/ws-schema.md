@@ -1,41 +1,26 @@
-# Skema Pesan WS — PromptFortress (frontend ⇄ backend)
+# WebSocket contract
 
-Dipakai oleh `src/state/Bus.jsx`. JSON tunggal per frame; backend = sumber kebenaran
-(HP & proyektor TIDAK memanggil RPC Monad — PRD 3.5).
+The frontend uses the backend as the source of truth. Connections share the page
+origin and use `/ws/play`, `/ws/stage`, and `/ws/host`; the host token is passed
+as the `t` query parameter. The browser does not connect to Monad RPC.
 
-## Client → Server
-| type | payload | arti |
+## Client to server
+
+| Channel | Message | Purpose |
 |---|---|---|
-| `join` | `{nick}` | masuk room (regex `^[a-zA-Z0-9_]{2,12}$` tervalidasi ulang server) |
-| `attack` | `{nick, picked:[3]}` ATAU `{nick, rawText}` (maks 140) | kombinasi kartu PRD 7.1 / teks manual |
-| `panic` | `{}` | Panic Blur aktif |
-| `host:*` | `host:lobby \| host:raw \| host:vaultOn \| host:over \| host:claimVendor \| host:teamAttack \| host:crowd` | kontrol host panel |
+| play | `join { nickname }` | Join the room |
+| play | `rejoin { playerId }` | Restore a saved player session |
+| play | `attack { payload, manual? }` | Queue a card combination or enabled manual prompt |
+| stage | `panic` | Toggle text blur |
+| host | `host_cmd { cmd, ... }` | Change phase, toggle settings, or run demo actions |
 
-## Server → Client
-| type | payload | arti |
-|---|---|---|
-| `room` | snapshot state penuh (phase, bank w/ saldo NYATA, players, vaultOn, virtual:false) | resync saat join/reconnect |
-| `phase` | `{phase, startedAt}` | transisi state machine |
-| `queue` | `{waiting, max: 12}` | panel antrean |
-| `feed` | item serangan (kill-feed), semua serangan tampil | lihat bentuk `feed` di bawah |
-| `panic` | `{}` | sensor teks di UI |
+## Server to client
 
-### Bentuk item `feed`
-```json
-{
-  "id": "srv-6f1c2", "nick": "rampok_budi", "ts": 1760000000000,
-  "text": "…teks serangan…",
-  "labels": ["Contoh Serangan", "fallback parser"],   // label kejujuran PRD 6.4/8
-  "verdict": { "tier": "G2", "points": 500 },          // tier PRD 2.2; VENDORA utk klaim juri
-  "guards": [ { "clear": true, "ms": 8 }, { "clear": true, "ms": 71 }, { "clear": false, "ms": 183 } ],
-  "timeline": { "proposed": 0, "voted": 312, "finalized": 604 },  // voted BOLEH tidak ada (PRD 3.1)
-  "amountMon": 4.9,
-  "txUrl": "https://monadscan/tx/0x…"
+The UI consumes `state`, `joined`, `join_rejected`, `scoreboard`, `queue`,
+`queue_update`, `killfeed`, `guardian_decision`, `pipeline`, `treasury`,
+`panic_blur`, `attack_ack`, `attack_result`, `attack_rejected`, `cooldown`,
+`host_status`, and host notices/errors. Queue and attack validation, scores,
+phase transitions, balances, and guard measurements come from the backend.
 
-}
-```
-
-## Larangan untuk frontend
-- Tidak ada `eth_*` dari browser; angka saldo/latensi harus dari pesan ini (result ukur), bukan hardcode.
-- Timeline UI hanya boleh maju Proposed→Voted→Finalized; jika `voted` tidak ada, tampilkan Finalized langsung.
-- Field `ms` wajib hasil ukur backend; frontend tidak mengarang angka.
+Manual prompts remain disabled unless the host enables them. Text is validated
+and filtered by the backend before it reaches the stage feed.
