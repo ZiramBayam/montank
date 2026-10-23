@@ -1,0 +1,49 @@
+/* ===== /host — panel backstage ===== */
+.host {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 14px;
+  padding: 14px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.hhead {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: var(--border);
+  background: var(--panel);
+  padding: 10px 14px;
+  box-shadow: var(--shadow);
+  font-family: var(--f-display);
+}
+.hhead b { color: var(--yellow); }
+
+.hzone { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.hzone h2 { margin: 0; font-size: 0.9rem; }
+.hgrid { display: flex; flex-wrap: wrap; gap: 10px; }
+.hgrid .btn { font-size: 0.7rem; padding: 10px 12px; min-height: 48px; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.stat {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 10px;
+}
+.stat .t-num { font-size: 1.5rem; line-height: 1.1; }
+
+.hlog {
+  font-family: var(--f-score);
+  font-size: 1.05rem;
+  padding: 10px 12px;
+  margin: 0;
+  min-height: 120px;
+  background: var(--bg);
+  color: var(--paper-dim);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .host { grid-template-columns: 1fr; }
+}
