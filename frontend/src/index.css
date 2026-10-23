@@ -27,6 +27,9 @@
 * { box-sizing: border-box; }
 
 html, body, #root { height: 100%; }
+@supports (height: 100dvh) {
+  html, body, #root { height: 100dvh; }
+}
 
 body {
   margin: 0;
@@ -36,6 +39,7 @@ body {
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
   overflow-x: hidden;
 }
 
@@ -86,6 +90,9 @@ h2 { font-size: clamp(1.1rem, 2.6vw, 1.8rem); }
 .btn--go    { background: var(--green);  color: #000; }
 .btn--stop  { background: var(--red);    color: #fff; }
 .btn--coin  { background: var(--yellow); color: #000; }
+
+/* mobile: kill delay 300ms + no text select saat rapat menekan tombol */
+button, .ccard { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 
 .dim { color: var(--paper-dim); }
 .badge {
