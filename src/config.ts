@@ -15,7 +15,7 @@ export const config = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   host: process.env.HOST ?? '0.0.0.0',
   port: number('PORT', 3000),
-  baseUrl: (process.env.BASE_URL ?? 'http://localhost:3000').replace(/\/$/, ''),
+  baseUrl: (process.env.BASE_URL ?? '').replace(/\/$/, ''),
   hostToken: process.env.HOST_TOKEN ?? '',
   trustProxy: bool('TRUST_PROXY', false),
   rehearsal: bool('REHEARSAL', true),

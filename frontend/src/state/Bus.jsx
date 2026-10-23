@@ -41,12 +41,14 @@ function initial() {
     breachRaw: null, // {mon, secs}
     players: {},
     queueWaiting: 0,
+    queuePosition: null,
     pending: [], // antrean server
     flight: null, // serangan yang sedang diproses penjaga (arena /play)
     attacks: [], // kill-feed, terbaru dulu
     focusId: null,
     vetoCount: 0,
     clearCount: 0,
+    telemetry: { totalAttacks: 0, vetoes: 0, breaches: 0 },
   };
 }
 
@@ -88,9 +90,10 @@ const addScore = (players, nick, pts) =>
 
 /* ---------- Provider ---------- */
 
-export function BusProvider({ children }) {
+export function BusProvider({ children, role: appRole }) {
   const [state, setState] = useState(initial);
   const [mode, setMode] = useState("connecting");
+  const role = appRole || window.location.pathname.replace(/\/+$/, "").slice(1) || "stage";
   const ref = useRef(state);
   useEffect(() => {
     ref.current = state;
@@ -106,19 +109,25 @@ export function BusProvider({ children }) {
 
   useEffect(() => {
     let dead = false;
-    const role = window.location.pathname.replace(/\/+$/, "").slice(1) || "stage";
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = new URL(CONFIG.wsUrl || `${protocol}//${window.location.host}/ws/${role}`);
-    if (!CONFIG.wsUrl && role === "host" && qs.has("t")) url.searchParams.set("t", qs.get("t"));
-    const socket = new WebSocket(url);
-    ws.current = socket;
-    socket.onopen = () => {
+    let reconnectTimer;
+    const connect = () => {
       if (dead) return;
-      setMode("real");
-      const playerId = localStorage.getItem("pf_player_id");
-      if (role === "play" && playerId) socket.send(JSON.stringify({ type: "rejoin", playerId }));
-      for (const message of outbox.current.splice(0)) socket.send(JSON.stringify(message));
-    };
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const url = new URL(CONFIG.wsUrl || `${protocol}//${window.location.host}/ws/${role}`);
+      if (!CONFIG.wsUrl && ["host", "stage"].includes(role) && qs.has("t")) url.searchParams.set("t", qs.get("t"));
+      const socket = new WebSocket(url);
+      ws.current = socket;
+      socket.onopen = () => {
+        if (dead) return;
+        setMode("real");
+        const playerId = localStorage.getItem("pf_player_id");
+        if (role === "play" && playerId) socket.send(JSON.stringify({ type: "rejoin", playerId }));
+        const pending = outbox.current.splice(0);
+        for (const message of pending) {
+          if (role === "play" && playerId && ["join", "rejoin"].includes(message.type)) continue;
+          socket.send(JSON.stringify(message));
+        }
+      };
     socket.onmessage = (ev) => {
       if (dead) return;
       try {
@@ -131,30 +140,53 @@ export function BusProvider({ children }) {
         }
         else if (m.type === "join_rejected") {
           localStorage.removeItem("pf_player_id");
-          push((prev) => ({ ...prev, joinError: m.reason }));
+          push((prev) => ({ ...prev, joinError: m.reason, playerId: null, activeAttackId: null, queuePosition: null }));
         }
         else if (m.type === "scoreboard") push((prev) => ({ ...prev, players: mergePlayers(prev.players, m.top), myScore: m.score, myRank: m.rank }));
         else if (m.type === "player_joined") push((prev) => ({ ...prev, playerCount: m.count }));
-        else if (m.type === "queue" || m.type === "queue_update") push((prev) => ({ ...prev, queueWaiting: m.count ?? m.queuePos ?? 0 }));
+        else if (m.type === "queue") push((prev) => ({ ...prev, queueWaiting: m.count ?? prev.queueWaiting }));
+        else if (m.type === "queue_update" || m.type === "attack_ack") push((prev) => ({ ...prev, queuePosition: m.queuePos ?? prev.queuePosition, queueEtaMs: m.estMs ?? prev.queueEtaMs, activeAttackId: m.attackId ?? prev.activeAttackId }));
         else if (m.type === "killfeed") push((prev) => ({ ...prev, attacks: upsertAttack(prev.attacks, m.entry) }));
+        else if (m.type === "spotlight") push((prev) => applySpotlight(prev, m));
         else if (m.type === "guardian_decision") push((prev) => updateGuard(prev, m));
         else if (m.type === "treasury") push((prev) => ({ ...prev, bank: { ...prev.bank, vaultMon: Number(m.balance) || 0, heldMon: Number(m.held) || 0 } }));
         else if (m.type === "pipeline") push((prev) => updatePipeline(prev, m));
         else if (m.type === "panic_blur") push((prev) => ({ ...prev, panic: Boolean(m.active) }));
-        else if (m.type === "attack_ack") push((prev) => ({ ...prev, activeAttackId: m.attackId }));
+        else if (m.type === "attack_status") push((prev) => ({ ...prev, activeAttackId: m.attackId ?? null, queuePosition: ["QUEUED"].includes(m.status) ? prev.queuePosition : null }));
         else if (m.type === "attack_result") push((prev) => updateAttackResult(prev, m));
-        else if (m.type === "attack_rejected") push((prev) => ({ ...prev, attackError: m.reason, activeAttackId: null }));
+        else if (m.type === "attack_rejected") push((prev) => ({ ...prev, attackError: m.reason, activeAttackId: null, queuePosition: null }));
         else if (m.type === "cooldown") push((prev) => ({ ...prev, cooldownUntil: m.untilEpochSec * 1000 }));
+        else if (m.type === "raw_breach") push((prev) => ({ ...prev, breachRaw: { mon: m.mon, secs: m.secs, txUrl: m.txHash ? prev.txExplorerBaseUrl + m.txHash : null } }));
+        else if (m.type === "telemetry") push((prev) => ({ ...prev, telemetry: { totalAttacks: m.totalAttacks ?? prev.telemetry.totalAttacks, vetoes: m.vetoes ?? prev.telemetry.vetoes, breaches: m.breaches ?? prev.telemetry.breaches } }));
+        else if (m.type === "lobby_info") push((prev) => ({ ...prev, lobbyInfo: m }));
         else if (m.type === "host_status") push((prev) => ({ ...prev, hostAuthorized: !!m.authorized, hostStatus: m, playerCount: m.players ?? prev.playerCount }));
         else if (m.type === "host_error" || m.type === "host_alert") push((prev) => ({ ...prev, hostMessage: m.message }));
       } catch { /* payload bukan JSON: abaikan */ }
+      };
+      socket.onerror = () => { if (!dead) setMode("disconnected"); };
+      socket.onclose = () => {
+        if (ws.current === socket) ws.current = null;
+        if (dead) return;
+        setMode("disconnected");
+        reconnectTimer = setTimeout(connect, 1000 + Math.random() * 2000);
+      };
     };
-    socket.onerror = () => !dead && setMode("disconnected");
-    socket.onclose = () => !dead && setMode("disconnected");
+    connect();
     return () => {
       dead = true;
-      socket.close();
+      clearTimeout(reconnectTimer);
+      ws.current?.close();
+      ws.current = null;
     };
+  }, [push, role]);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/lobby").then((response) => response.ok ? response.json() : null)
+      .then((lobbyInfo) => {
+        if (active && lobbyInfo) push((prev) => ({ ...prev, lobbyInfo, txExplorerBaseUrl: lobbyInfo.txExplorerBaseUrl || prev.txExplorerBaseUrl }));
+      }).catch(() => {});
+    return () => { active = false; };
   }, [push]);
 
   const api = useMemo(
@@ -167,7 +199,7 @@ export function BusProvider({ children }) {
         push((prev) => ({ ...prev, attackError: null }));
         send({ type: "attack", payload: payload.payload ?? {}, manual: payload.rawText });
       },
-      panic: () => send({ type: "panic" }),
+      panic: () => send({ type: "host_cmd", cmd: "PANIC_BLUR" }),
       host: {
         lobby: () => send({ type: "host_cmd", cmd: "GOTO:LOBBY_OPEN" }),
         startRaw: () => send({ type: "host_cmd", cmd: "ROUND1" }),
@@ -228,11 +260,26 @@ function updatePipeline(prev, m) {
   if (m.commitState === "Proposed") timeline.proposed = m.measuredMs ?? 0;
   else if (m.commitState === "Voted") timeline.voted = m.measuredMs ?? 0;
   else if (m.commitState === "Finalized") timeline.finalized = m.measuredMs ?? 0;
-  return { ...prev, attacks: prev.attacks.map((a) => a.id === target.id ? { ...a, timeline, txUrl: m.txHash } : a) };
+  return { ...prev, attacks: prev.attacks.map((a) => a.id === target.id ? { ...a, timeline, txUrl: m.txHash ? prev.txExplorerBaseUrl + m.txHash : a.txUrl } : a) };
 }
 function updateAttackResult(prev, m) {
   const tier = m.verdict === "RAW_BREACH" || m.verdict === "EXECUTED" ? "BREACH" : m.verdict === "VETOED" ? (m.points >= 500 ? "G2" : m.points >= 250 ? "G1" : "VICTIM") : m.layer === "LAYER0" ? "LAYER0" : "ATTEMPT";
-  return { ...prev, attacks: prev.attacks.map((a) => a.id === m.attackId ? { ...a, verdict: { tier, points: m.points }, labels: [...new Set([...a.labels, ...(m.breakdown ?? []).filter((x) => /fallback parser|rehearsal/i.test(x))])] } : a), activeAttackId: null, lastAttackResult: m };
+  return { ...prev, attacks: prev.attacks.map((a) => a.id === m.attackId ? { ...a, verdict: { tier, points: m.points }, labels: [...new Set([...a.labels, ...(m.breakdown ?? []).filter((x) => /fallback parser|rehearsal/i.test(x))])] } : a), activeAttackId: null, queuePosition: null, lastAttackResult: m };
+}
+
+function applySpotlight(prev, m) {
+  const incoming = m.attack ?? {};
+  const id = incoming.attackId ?? incoming.id;
+  if (!id) return { ...prev, spotlight: m };
+  const votes = m.votes ?? [];
+  const vetoes = votes.filter((vote) => vote.decision === "VETO").length;
+  const clears = votes.length - vetoes;
+  const points = vetoes ? (clears === 1 ? 250 : clears === 2 ? 500 : 100) : 1000;
+  const entry = { attackId: id, nickname: incoming.nickname, text: incoming.text, verdict: vetoes ? "VETOED" : "EXECUTED", points };
+  const attacks = upsertAttack(prev.attacks, entry).map((attack) => attack.id === id && votes.length
+    ? { ...attack, guards: votes.map((vote) => ({ clear: vote.decision === "CLEAR", ms: vote.ms ?? 0 })) }
+    : attack);
+  return { ...prev, spotlight: { ...m, attackId: id }, attacks };
 }
 
 /* =================== Aksi (dipakai mode real & mock) =================== */

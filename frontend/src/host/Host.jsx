@@ -9,7 +9,7 @@ import "./Host.css";
 const PHASES = [
   { key: PHASE.LOBBY, label: "LOBBY", api: "lobby", desc: "QR + nickname (0:00–0:25)" },
   { key: PHASE.RAW, label: "ROUND 1 · RAW", api: "startRaw", desc: "No protection (0:25–0:55)" },
-  { key: PHASE.SHIELD, label: "ROUND 2 · VAULT", api: "vaultOn", desc: "AegisVault ON + 60s timer" },
+  { key: PHASE.SHIELD, label: "ROUND 2 · VAULT", api: "vaultOn", desc: "AegisVault ON + 75s timer" },
   { key: PHASE.OVER, label: "PODIUM", api: "gameOver", desc: "Telemetry + SDK" },
 ];
 

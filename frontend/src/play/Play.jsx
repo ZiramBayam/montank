@@ -41,6 +41,9 @@ export default function Play() {
     }
   }, [state.playerId, state.nickname]);
   useEffect(() => {
+    if (state.joinError === "SESSION_EXPIRED") setJoined(false);
+  }, [state.joinError]);
+  useEffect(() => {
     if (state.lastAttackResult) setInFlight(false);
   }, [state.lastAttackResult]);
   useEffect(() => {
@@ -174,6 +177,7 @@ export default function Play() {
   const cooling = now > 0 && now < coolUntil;
   const coolLeft = cooling ? Math.ceil((coolUntil - now) / 1000) : QUEUE.COOLDOWN_S;
   const queueFull = state.queueWaiting >= QUEUE.MAX;
+  const attackActive = inFlight || Boolean(state.activeAttackId);
 
   const send = () => {
     const text = draft.trim();
@@ -294,9 +298,10 @@ export default function Play() {
               <span className="dim t-num">{draft.length}/140</span>
               <span className="dim t-num">Queue {state.queueWaiting}/{QUEUE.MAX}</span>
             </div>
+            {state.queuePosition != null && <p className="dim">Masuk antrean #{state.queuePosition}{state.queueEtaMs ? ` · estimasi ${Math.ceil(state.queueEtaMs / 1000)} dtk` : ""}</p>}
             <small className="dim">Spectator text passes the backend profanity filter before it appears on /stage (PRD 8).</small>
-            <button className="btn btn--stop big sendbtn" onClick={send} disabled={inFlight || cooling || queueFull}>
-              {queueFull ? "Queue full" : inFlight ? "Guards judging…" : cooling ? `Cooldown ${coolLeft}s` : "ATTACK"}
+            <button className="btn btn--stop big sendbtn" onClick={send} disabled={attackActive || cooling || queueFull}>
+              {queueFull ? "Queue full" : attackActive ? (state.queuePosition ? `Queue #${state.queuePosition}` : "Attack in progress…") : cooling ? `Cooldown ${coolLeft}s` : "ATTACK"}
             </button>
             {cooling && <div className="cd"><i style={{ width: `${(coolLeft / QUEUE.COOLDOWN_S) * 100}%` }} /></div>}
             {(error || state.attackError) && <p className="err">{error || state.attackError}</p>}

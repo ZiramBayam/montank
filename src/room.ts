@@ -144,7 +144,10 @@ export class Room {
   }
 
   queuedForPlayer(playerId: string): boolean {
-    return this.queue.some((attack) => attack.playerId === playerId) || [...this.attacks.values()].some((attack) => attack.playerId === playerId && attack.status === 'PROCESSING');
+    const player = this.players.get(playerId);
+    if (player?.activeAttackId) return true;
+    return this.queue.some((attack) => attack.playerId === playerId)
+      || [...this.attacks.values()].some((attack) => attack.playerId === playerId && ['PROCESSING', 'PROPOSED'].includes(attack.status));
   }
 
   stop(): void { if (this.persistTimer) clearTimeout(this.persistTimer); }

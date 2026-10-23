@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
-import QRCode from "qrcode";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useBus } from "../state/RoomCtx.js";
 import { PHASE, ROUND_MS } from "../state/phases.js";
 import { GUARDS, TIERS, HONEST, QUEUE } from "../data/deck.js";
@@ -10,18 +9,26 @@ import "./Stage.css";
 export default function Stage() {
   const { state, api, mode } = useBus();
   const { phase } = state;
+  const [lobbyInfo, setLobbyInfo] = useState(null);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/lobby").then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (active && data) setLobbyInfo(data); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   // Panic Blur: hotkey Spacebar (PRD 8)
   useEffect(() => {
     const onKey = (e) => {
-      if (e.code === "Space" && !e.repeat) {
+      if (e.code === "Space" && !e.repeat && state.hostAuthorized) {
         e.preventDefault();
         api.panic();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [api]);
+  }, [api, state.hostAuthorized]);
   useEffect(() => {
     probeFiles();
     const unlock = () => unlockAudio();
@@ -41,9 +48,9 @@ export default function Stage() {
   }, [state.breachRaw, state.vaultOn]);
 
   const focus = useMemo(() => {
-    const pid = state.focusId || state.attacks[0]?.id;
+    const pid = state.spotlight?.attackId || state.focusId || state.attacks[0]?.id;
     return state.attacks.find((a) => a.id === pid) || state.attacks[0] || null;
-  }, [state.focusId, state.attacks]);
+  }, [state.focusId, state.spotlight?.attackId, state.attacks]);
 
   // sfx menuju tier fokus baru
   useEffect(() => {
@@ -64,13 +71,13 @@ export default function Stage() {
   return (
     <div className="stage dither">
       <TopBar state={state} leftS={leftS} mode={mode} />
-      {phase === PHASE.LOBBY && <Lobby state={state} />}
+      {phase === PHASE.LOBBY && <Lobby state={state} lobbyInfo={lobbyInfo} />}
       {phase === PHASE.RAW && <RawRound state={state} />}
       {phase === PHASE.SHIELD && <Shield state={state} focus={focus} api={api} />}
       {phase === PHASE.OVER && <Podium state={state} />}
-      <button className="hostchip" onClick={api.panic} title="Spacebar = Panic Blur (PRD 8)">
+      {state.hostAuthorized && <button className="hostchip" onClick={api.panic} title="Spacebar = Panic Blur (PRD 8)">
         {state.panic ? `PANIC ON → ${HONEST.SENSOR}` : "[SPACE] PANIC BLUR"}
-      </button>
+      </button>}
     </div>
   );
 }
@@ -126,13 +133,11 @@ function Badge({ children, sim, warn }) {
 }
 
 /* ---------- Lobby: QR + nickname live ---------- */
-function Lobby({ state }) {
-  const url = `${window.location.origin}/play`;
-  const q = useMemo(() => QRCode.toDataURL(url, { width: 400, margin: 2 }), [url]);
+function Lobby({ state, lobbyInfo }) {
   const joined = Object.keys(state.players);
   return (
     <div className="zone lobby">
-      <img src={q} alt="QR to join from a phone" className="qr card card--lift" />
+      <img src={lobbyInfo?.qrUrl || "/qr.png"} alt="QR to join from a phone" className="qr card card--lift" />
       <div className="lobbyinfo">
         <h1>RAID THE CASHIER</h1>
         <ul className="rules">
@@ -145,6 +150,7 @@ function Lobby({ state }) {
           </li>
         </ul>
         <p className="dim blink-idle">ATTACK TO SCORE — ROOM IS OPEN</p>
+        <p className="dim">Open manually: <b>{lobbyInfo?.manualUrl || `${window.location.host}/play`}</b></p>
       </div>
       <div className="board card">
         <h2>Players joined ({state.playerCount ?? joined.length})</h2>
@@ -172,6 +178,8 @@ function RawRound({ state }) {
           <p className="drain">
             <span className="score t-huge">−{b.mon} MON</span> in <span className="score t-big">{b.secs}</span> seconds
           </p>
+          {b.txUrl && <a className="txlink" href={b.txUrl} target="_blank" rel="noreferrer">View breach transaction on MonadScan ↗</a>}
+          {b.simulated && <Badge sim>REHEARSAL · VIRTUAL</Badge>}
           <p className="dim">Raw treasury, zero protection. Balance illustrates testnet (virtual) funds.</p>
           <p className="hint blink-idle">Host → [AEGIS VAULT: ON] for Round 2</p>
         </>
@@ -192,7 +200,7 @@ function Shield({ state, focus, api }) {
     <>
       <div className="main">
         <section className="spotlight card">
-          <Spotlight state={state} atk={focus} />
+          <Spotlight state={state} atk={state.spotlight?.attackId ? focus : null} />
         </section>
         <aside className="side">
           <Leaderboard state={state} top={5} />
@@ -200,7 +208,7 @@ function Shield({ state, focus, api }) {
           <KillFeed state={state} />
         </aside>
       </div>
-      <Telemetry atk={focus} api={api} />
+      <Telemetry atk={focus} api={api} authorized={state.hostAuthorized} />
     </>
   );
 }
@@ -314,7 +322,7 @@ function KillFeed({ state }) {
 }
 
 /* ---------- Telemetri (PRD 7.2 bottom) ---------- */
-function Telemetry({ atk, api }) {
+function Telemetry({ atk, api, authorized }) {
   const tl = atk?.timeline;
   return (
     <section className="telemetry card">
@@ -328,11 +336,11 @@ function Telemetry({ atk, api }) {
           </span>
         )}
       </div>
-      <a className="txlink" href={atk ? "#monadscan" : "#"} target="_blank" rel="noreferrer">
+      <a className="txlink" href={atk?.txUrl || "#"} target="_blank" rel="noreferrer" aria-disabled={!atk?.txUrl} onClick={(event) => { if (!atk?.txUrl) event.preventDefault(); }}>
         <Sprite name="txLink" size={14} /> View Tx on MonadScan ↗
       </a>
       <span className="jury dim">jury buttons:</span>
-      <JuryButtons api={api} />
+      <JuryButtons api={api} authorized={authorized} />
     </section>
   );
 }
@@ -347,13 +355,13 @@ function Step({ on, ms, label, optional = false, last = false }) {
   );
 }
 
-function JuryButtons({ api }) {
+function JuryButtons({ api, authorized }) {
   return (
     <div className="buttons">
-      <button className="btn btn--go" onClick={api.host.claimVendor}>
+      <button className="btn btn--go" onClick={api.host.claimVendor} disabled={!authorized}>
         Claim Registered Vendor
       </button>
-      <button className="btn" onClick={api.host.claimVendorB} title="Path B 3/3 clear — used when judges test a valid claim">
+      <button className="btn" onClick={api.host.claimVendorB} disabled={!authorized} title="Path B 3/3 clear — used when judges test a valid claim">
         Claim Verified New Vendor
       </button>
     </div>
@@ -371,7 +379,7 @@ function Podium({ state }) {
     ? [...guardMsFlat].sort((a, b) => a - b)[Math.floor(guardMsFlat.length / 2)]
     : null;
   const held = state.bank.heldMon.toFixed(1);
-  const breaches = attacks.filter((a) => a.verdict.tier === "BREACH").length;
+  const breaches = state.telemetry?.breaches ?? attacks.filter((a) => a.verdict.tier === "BREACH").length;
   const code = `import { AegisVaultClient } from "aegis-vault-sdk";
 
 const vault = new AegisVaultClient(RPC_WS, VAULT_ADDR);
@@ -393,8 +401,8 @@ await vault.proposeAction({ to, amount, intentHash }); `;
       <section className="tele card">
         <h2>ON-CHAIN TELEMETRY CARD</h2>
         <ul className="tgrid">
-          <li><span className="dim">Total attacks</span><b className="num">{attacks.length}</b></li>
-          <li><span className="dim">Vetoes applied</span><b className="num-bad">{state.vetoCount}</b></li>
+          <li><span className="dim">Total attacks</span><b className="num">{state.telemetry?.totalAttacks ?? attacks.length}</b></li>
+          <li><span className="dim">Vetoes applied</span><b className="num-bad">{state.telemetry?.vetoes ?? state.vetoCount}</b></li>
           <li><span className="dim">Median guard latency</span><b className="num-ok">{median ? `${median}ms` : "—"}</b></li>
           <li><span className="dim">Funds held</span><b className="num-bad">{held} MON</b></li>
           <li><span className="dim">Full breach</span><b className="num-ok">{breaches}</b></li>

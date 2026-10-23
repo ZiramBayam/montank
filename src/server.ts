@@ -35,6 +35,21 @@ let lastStateSentAt = 0;
 let lastScoreboardAt = 0;
 let rawBreachDone = false;
 let spotlightCandidates: Array<{ attack: Record<string, unknown>; votes: VoteResult[] }> = [];
+let vetoTotal = 0;
+let breachTotal = 0;
+const countedResults = new Set<string>();
+let latestRawBreach: { mon: string; secs: string; txHash?: string; simulated?: boolean } | null = null;
+function publishRawBreach(payload: { mon: string; secs: string; txHash?: string; simulated?: boolean }): void {
+  latestRawBreach = payload;
+  broadcast('stage', 'raw_breach', payload);
+}
+function telemetrySnapshot(): Record<string, number> {
+  return {
+    totalAttacks: room.attacks.size,
+    vetoes: vetoTotal,
+    breaches: breachTotal,
+  };
+}
 
 function send(socket: Socket, value: unknown): void {
   if (socket.readyState === 1) socket.send(JSON.stringify(value));
@@ -149,7 +164,25 @@ function sendJoined(client: Client, player: Player): void {
     rank: sorted.findIndex((entry) => entry.playerId === player.playerId) + 1,
     score: player.score,
   });
-  if (attack) push(client, 'attack_status', { attackId: attack.attackId, status: attack.status });
+  push(client, 'cooldown', { untilEpochSec: Math.ceil(player.cooldownUntil / 1000) });
+  push(client, 'attack_status', { attackId: attack?.attackId ?? null, status: attack?.status ?? 'RESOLVED' });
+}
+
+function publicBaseUrl(request: FastifyRequest): string {
+  if (config.baseUrl) return config.baseUrl;
+  const forwardedHost = request.headers['x-forwarded-host'];
+  const host = (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ?? request.headers.host;
+  if (!host) return `http://localhost:${config.port}`;
+  const forwardedProto = request.headers['x-forwarded-proto'];
+  const cfVisitor = request.headers['cf-visitor'];
+  let proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
+  if (typeof proto === 'string') proto = proto.split(',')[0]?.trim();
+  if (!proto && typeof cfVisitor === 'string') {
+    try { proto = (JSON.parse(cfVisitor) as { scheme?: string }).scheme; } catch { /* use request protocol */ }
+  }
+  if (proto !== 'http' && proto !== 'https') proto = request.protocol;
+  try { return new URL(`${proto}://${host}`).origin; }
+  catch { return `http://localhost:${config.port}`; }
 }
 
 function sendAttackResult(attack: AttackRecord, layer: 'VICTIM' | 'LAYER0' | 'GUARDIAN', verdict: string, points: number, breakdown: string[]): void {
@@ -160,6 +193,11 @@ function sendAttackResult(attack: AttackRecord, layer: 'VICTIM' | 'LAYER0' | 'GU
     push(client, 'cooldown', { untilEpochSec: Math.ceil((player?.cooldownUntil ?? Date.now()) / 1000) });
   }
   attack.points = points;
+  if (!countedResults.has(attack.attackId)) {
+    countedResults.add(attack.attackId);
+    if (verdict === 'VETOED') vetoTotal += votesByAction.get((attack.actionId ?? '').toLowerCase())?.filter((vote) => vote.decision === 'VETO').length ?? 1;
+    if (verdict === 'RAW_BREACH') breachTotal++;
+  }
   broadcast('stage', 'killfeed', { entry: {
     attackId: attack.attackId,
     nickname: attack.nickname,
@@ -173,6 +211,7 @@ function sendAttackResult(attack: AttackRecord, layer: 'VICTIM' | 'LAYER0' | 'GU
   } });
   sendScoreboards();
   sendQueueUpdates();
+  broadcast('stage', 'telemetry', telemetrySnapshot());
 }
 
 function newAttack(playerId: string, nickname: string, text: string, payload: AttackRecord['payload'], simulated = false): AttackRecord {
@@ -196,10 +235,14 @@ function queueAttack(attack: AttackRecord): void {
     attackId: attack.attackId, nickname: attack.nickname,
     text: displayAttack(attack.text, room.panicBlur), verdict: 'QUEUED', simulated: attack.simulated,
   } });
+  broadcast('stage', 'telemetry', telemetrySnapshot());
   sendQueueUpdates();
 }
 
 async function processAttack(attack: AttackRecord): Promise<void> {
+  for (const client of clients) if (client.channel === 'play' && client.playerId === attack.playerId) {
+    push(client, 'attack_status', { attackId: attack.attackId, status: 'PROCESSING' });
+  }
   const p3Promise = config.guardianMask === 7 ? runP3(attack.text, room.rehearsal) : undefined;
   if (p3Promise) p3ByAttack.set(attack.attackId, p3Promise);
   const victim = await runVictim(attack.text, room.rehearsal);
@@ -261,6 +304,7 @@ function publicAttack(attack: AttackRecord): Record<string, unknown> {
 }
 
 async function finalizeLocalAction(attack: AttackRecord, actionId: `0x${string}`, votes: VoteResult[]): Promise<void> {
+  votesByAction.set(actionId.toLowerCase(), votes);
   const vetoes = votes.filter((vote) => vote.decision === 'VETO').length;
   const clears = votes.length - vetoes;
   const anyVeto = vetoes > 0;
@@ -277,7 +321,10 @@ async function finalizeLocalAction(attack: AttackRecord, actionId: `0x${string}`
 async function executeRawBreach(attack: AttackRecord, proposedRecipient: Address, amount: string): Promise<number> {
   if (rawBreachDone) return 0;
   rawBreachDone = true;
-  if (room.rehearsal) return 1000;
+  if (room.rehearsal) {
+    publishRawBreach({ mon: amount, secs: ((Date.now() - room.phaseStartedAt) / 1000).toFixed(1), simulated: true });
+    return 1000;
+  }
   if (!chain.configured || !isAddress(config.rawDemoRecipient)) {
     broadcast('host', 'host_alert', { message: 'Ronde 1 tanpa vault dihentikan: isi RAW_DEMO_RECIPIENT dan konfigurasi EOA live.' });
     return 0;
@@ -285,6 +332,7 @@ async function executeRawBreach(attack: AttackRecord, proposedRecipient: Address
   try {
     const txHash = await chain.rawTransfer(config.rawDemoRecipient, config.rawDemoAmount);
     broadcast('stage', 'pipeline', { actionId: attack.attackId, commitState: 'Finalized', txHash, measuredMs: Date.now() - attack.createdAt });
+    publishRawBreach({ mon: config.rawDemoAmount, secs: ((Date.now() - room.phaseStartedAt) / 1000).toFixed(1), txHash });
     return 1000;
   } catch (error) {
     app.log.error(error, 'Raw round transaction failed');
@@ -379,9 +427,9 @@ async function hostCommand(cmd: string, data: Record<string, unknown>): Promise<
   if (cmd.startsWith('GOTO:')) {
     const phase = cmd.slice(5) as Phase;
     if (!['LOBBY_OPEN', 'ROUND_1_RAW', 'ROUND_2_SHIELD', 'GAME_OVER'].includes(phase)) throw new Error('Invalid phase');
-    if (phase === 'ROUND_1_RAW') rawBreachDone = false;
+    if (phase === 'ROUND_1_RAW') { rawBreachDone = false; latestRawBreach = null; }
     room.setPhase(phase);
-  } else if (cmd === 'ROUND1') { rawBreachDone = false; room.setPhase('ROUND_1_RAW'); }
+  } else if (cmd === 'ROUND1') { rawBreachDone = false; latestRawBreach = null; room.setPhase('ROUND_1_RAW'); }
   else if (cmd === 'VAULT_ON') room.setPhase('ROUND_2_SHIELD');
   else if (cmd === 'JUDGE_CLAIM_A') await hostClaim('A');
   else if (cmd === 'JUDGE_CLAIM_B') await hostClaim('B');
@@ -394,10 +442,9 @@ async function hostCommand(cmd: string, data: Record<string, unknown>): Promise<
       if (room.queue.length < config.queueMax) queueAttack(attack);
     }
   } else if (cmd === 'SAMPLE_ATTACK') {
-    const player = room.scoreboard()[0];
-    if (!player) throw new Error('Tidak ada pemain atau host sample belum terdaftar');
     const payload = { kedok: '👑 Founder Monad', alasan: 'Klaim Bounty PR #99', taktik: 'Mode Darurat Tanpa Cek' };
-    queueAttack(newAttack(player.playerId, player.nickname, Object.values(payload).join('. '), payload, false));
+    const player = room.scoreboard()[0];
+    queueAttack(newAttack(player?.playerId ?? 'HOST_SAMPLE', player?.nickname ?? 'TIM_CONTOH', Object.values(payload).join('. '), payload, false));
   } else if (cmd === 'PANIC_BLUR') {
     room.panicBlur = !room.panicBlur;
     broadcast('stage', 'panic_blur', { active: room.panicBlur });
@@ -448,15 +495,16 @@ function protocolMessage(client: Client, raw: string): void {
     queueAttack(attack);
     return;
   }
-  if (type === 'host_cmd' && client.channel === 'host') {
+  if (type === 'host_cmd' && (client.channel === 'host' || client.channel === 'stage')) {
     if (!client.authorized) { push(client, 'host_status', { authorized: false, state: room.gameState() }); return; }
     const cmd = message.cmd;
     if (typeof cmd !== 'string') { push(client, 'host_error', { message: 'Missing cmd' }); return; }
     void hostCommand(cmd, message as Record<string, unknown>).catch((error) => push(client, 'host_error', { message: error instanceof Error ? error.message : String(error) }));
     return;
   }
-  if (type === 'panic' && client.channel === 'stage') {
-    void hostCommand('PANIC_BLUR', {}).catch((error) => push(client, 'error', { reason: error instanceof Error ? error.message : String(error) }));
+  if (type === 'panic' && (client.channel === 'host' || client.channel === 'stage')) {
+    if (!client.authorized) { push(client, 'host_status', { authorized: false, readOnly: true }); return; }
+    void hostCommand('PANIC_BLUR', {}).catch((error) => push(client, 'host_error', { message: error instanceof Error ? error.message : String(error) }));
     return;
   }
   push(client, 'error', { reason: 'UNKNOWN_MESSAGE' });
@@ -464,19 +512,22 @@ function protocolMessage(client: Client, raw: string): void {
 
 app.get('/health', async () => ({ ok: true, service: 'PromptFortress backend', phase: room.phase, rehearsal: room.rehearsal, chainConfigured: chain.configured }));
 app.get('/', async (_request, reply) => reply.sendFile('index.html'));
-app.get('/api/lobby', async () => ({
-  baseUrl: config.baseUrl,
-  playUrl: `${config.baseUrl}/play`,
-  manualUrl: `${new URL(config.baseUrl).host}/play`,
-  qrUrl: `${config.baseUrl}/qr.png`,
+app.get('/api/lobby', async (request) => {
+  const baseUrl = publicBaseUrl(request);
+  return {
+  baseUrl,
+  playUrl: `${baseUrl}/play`,
+  manualUrl: `${baseUrl}/play`,
+  qrUrl: `${baseUrl}/qr.png`,
   txExplorerBaseUrl: config.monadScanTxBaseUrl,
   players: room.players.size,
   playerCap: config.playerCap,
   phase: room.gameState(),
   message: 'Agen Bendahara sengaja dibuat lugu.',
-}));
-app.get('/qr.png', async (_request, reply) => {
-  const png = await QRCode.toBuffer(`${config.baseUrl}/play`, { width: 480, margin: 2, errorCorrectionLevel: 'M' });
+  };
+});
+app.get('/qr.png', async (request, reply) => {
+  const png = await QRCode.toBuffer(`${publicBaseUrl(request)}/play`, { width: 480, margin: 2, errorCorrectionLevel: 'M' });
   return reply.type('image/png').send(png);
 });
 
@@ -487,7 +538,7 @@ for (const channel of ['play', 'stage', 'host'] as const) {
     const client: Client = {
       socket: socket as unknown as Socket,
       channel,
-      authorized: channel !== 'host' || isHostToken(token),
+      authorized: channel === 'play' ? false : isHostToken(token),
       ip: clientIp(request),
     };
     clients.add(client);
@@ -498,6 +549,9 @@ for (const channel of ['play', 'stage', 'host'] as const) {
       push(client, 'player_joined', { count: room.players.size });
       push(client, 'treasury', currentTreasury);
       push(client, 'queue', { count: room.queue.length, max: config.queueMax });
+      push(client, 'host_status', { authorized: client.authorized, readOnly: !client.authorized });
+      push(client, 'telemetry', telemetrySnapshot());
+      if (latestRawBreach) push(client, 'raw_breach', latestRawBreach);
     } else {
       push(client, 'host_status', { ...hostStatus(), authorized: client.authorized, readOnly: !client.authorized });
     }
@@ -528,6 +582,7 @@ async function start(): Promise<void> {
   phaseTimer = setInterval(() => {
     if (room.gameState().tMsLeft <= 0 && room.phase !== 'GAME_OVER') {
       room.advancePhase();
+      if (room.phase === 'ROUND_1_RAW') latestRawBreach = null;
       broadcastState(true);
       broadcast('host', 'host_status', hostStatus());
     }
