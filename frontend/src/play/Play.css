@@ -46,6 +46,21 @@
 
 .big { font-size: 1rem; padding: 14px; width: 100%; }
 
+/* panel boot saat join (8-bit) */
+.boot {
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.bootline { display: block; font-family: var(--f-score); font-size: 1.05rem; }
+.boot .cd { width: 100%; }
+.boot .cd > i { background: var(--purple); animation: cd-fill 900ms steps(18, jump-none) both; }
+@keyframes cd-fill { from { width: 0; } }
+
 /* ===== 1 leaderboard ===== */
 .iboard { padding: 12px 14px; }
 .iboard h2 { margin: 0 0 8px; font-size: 1rem; }
@@ -240,7 +255,7 @@
 
 /* reduced motion: semua animasi arena jadi kondisi akhir statis */
 @media (prefers-reduced-motion: reduce) {
-  .bolt.fly, .gseat.st2, .gseat.st3, .spark:not(.off) { animation: none !important; }
+  .bolt.fly, .gseat.st2, .gseat.st3, .spark:not(.off), .bootline, .boot .cd > i { animation: none !important; }
   .spark:not(.off) { opacity: 0; }
   .arena.sticky { position: static; }
 }
