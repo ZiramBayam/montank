@@ -4,6 +4,7 @@ import { PHASE } from "../state/phases.js";
 import { ROWS, composeAttack, TIERS, QUEUE, HONEST } from "../data/deck.js";
 import Sprite from "../components/Sprite.jsx";
 import { play, unlockAudio, probeFiles } from "../state/sfx.js";
+import { roomFromUrl } from "../state/room.js";
 import "./Play.css";
 
 const NICK_RE = /^[a-zA-Z0-9_]{2,12}$/;
@@ -172,8 +173,10 @@ export default function Play() {
   const rank = state.myRank ?? (standing.findIndex((r) => r.n === nick) + 1);
   const myScore = state.myScore ?? state.players[nick]?.score ?? 0;
   const over = state.phase === PHASE.OVER;
+  const lobby = state.phase === PHASE.LOBBY;
   const raw = state.phase === PHASE.RAW;
   const myHistory = state.attacks.filter((a) => a.nick === nick);
+  const playerCount = state.playerCount ?? standing.length;
   const cooling = now > 0 && now < coolUntil;
   const coolLeft = cooling ? Math.ceil((coolUntil - now) / 1000) : QUEUE.COOLDOWN_S;
   const queueFull = state.queueWaiting >= QUEUE.MAX;
@@ -212,6 +215,8 @@ export default function Play() {
 
       {over ? (
         <FinalBoard rank={rank} myScore={myScore} standing={standing} me={nick} />
+      ) : lobby ? (
+        <WaitingRoom nick={nick} playerCount={playerCount} others={standing} />
       ) : (
         <>
           {/* 1 Leaderboard */}
@@ -436,6 +441,61 @@ function FinalBoard({ rank, myScore, standing, me }) {
       <a className="txlink" href="#" onClick={(e) => e.preventDefault()}>
         Your transaction on MonadScan (sent on a real run) ↗
       </a>
+    </section>
+  );
+}
+
+/* ===== ruang tunggu (fase LOBBY — game belum dibuka host) ===== */
+function WaitingRoom({ nick, playerCount, others }) {
+  const room = roomFromUrl();
+  return (
+    <section className="wroom card slide-in-8" aria-live="polite">
+      <h1>WAITING ROOM</h1>
+      <p className="dim">
+        You're in, <b className="gold">{nick}</b>. The raid opens when the host starts Round 1.
+      </p>
+      {room && (
+        <div className="wroomrow">
+          <b className="wcode t-score">{room}</b>
+          <button
+            className="btn"
+            onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/play?room=${room}`)}
+          >
+            COPY INVITE LINK
+          </button>
+        </div>
+      )}
+      <span className="badge badge--sim">
+        {playerCount} PLAYER{playerCount === 1 ? "" : "S"} IN
+      </span>
+      {others.length > 0 && (
+        <div className="wlist">
+          {others.map((r, i) => (
+            <div className="wlrow" key={r.n}>
+              <span className="dim t-num">{i + 1}.</span>
+              <span>{r.n}</span>
+              {r.n === nick && <span className="badge">YOU</span>}
+              <span className="score">{r.s}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <span className="wrmasc idle-bob">
+        <Sprite name="mascot" size={30} />
+        <span className="mkover flick">
+          <Sprite name="mascotB" size={30} />
+        </span>
+      </span>
+      <p className="astatus dim blink-idle">WAITING FOR THE HOST…</p>
+      <ul className="wroomhint dim">
+        <li>
+          <b>Round 1 RAW</b> — no guards. Catch the Cashier Agent completely off guard.
+        </li>
+        <li>
+          <b>Round 2 VAULT</b> — AegisVault ON, 3 guards reading your prompt.
+        </li>
+        <li>One attack per 25s cooldown. Top 3 podium at the end.</li>
+      </ul>
     </section>
   );
 }
