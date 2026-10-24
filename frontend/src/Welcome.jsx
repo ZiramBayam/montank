@@ -5,16 +5,9 @@ import Sprite from "./components/Sprite.jsx";
 import { generateRoomCode, isRoomCode, listRooms } from "./state/room.js";
 import "./Welcome.css";
 
-const ROLES = [
-  { id: "play", label: "PLAYER" },
-  { id: "host", label: "HOST" },
-  { id: "stage", label: "STAGE" },
-];
-
 export default function Welcome() {
   const [created, setCreated] = useState("");
   const [joinInput, setJoinInput] = useState("");
-  const [joinRole, setJoinRole] = useState("play");
   const [findOpen, setFindOpen] = useState(false);
   const [err, setErr] = useState("");
   const [qr, setQr] = useState(null); // { room, url } — codec QRCode async
@@ -49,7 +42,7 @@ export default function Welcome() {
       setErr("Room not found on this device. Create it here first — demo rooms are cross-tab only.");
       return;
     }
-    window.location.href = `/${joinRole}?room=${code}`;
+    window.location.href = `/play?room=${code}`;
   };
 
   return (
@@ -95,17 +88,6 @@ export default function Welcome() {
                 autoCapitalize="characters"
                 autoComplete="off"
               />
-              <div className="wroles">
-                {ROLES.map((r) => (
-                  <button
-                    key={r.id}
-                    className={`btn ${joinRole === r.id ? "btn--primary" : ""}`}
-                    onClick={() => setJoinRole(r.id)}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
               <button className="btn btn--coin big" onClick={goJoin}>
                 JOIN →
               </button>
