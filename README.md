@@ -1,35 +1,56 @@
-# Montank — backend + frontend + contracts
+# Montank
 
-Full-stack demo Montank / Aegis-600. Backend menyediakan beberapa arena terpisah dengan kode undangan lintas perangkat, room state machine, host controls, pemain/rejoin, antrean, guard P1–P3, Gemini/fallback, integrasi AegisVault Monad, dedup `monadLogs`, treasury telemetry, dan QR lobby. Frontend React menyediakan layar pemain, panggung, dan host.
+Montank adalah game multiplayer tentang pertahanan wallet. Pemain mengirim prompt serangan dan permintaan payout; backend menilai permintaan melalui guard berlapis, sementara layar panggung memperlihatkan hasilnya. Mode live dapat mengirim aksi demo ke AegisVault di Monad Testnet. Ini demo mekanisme aplikasi, bukan klaim bahwa wallet terlindungi dari semua serangan.
 
-Kode backend berada di `backend/src/`, UI di `frontend/`, dan smart contract serta script Foundry di `contracts/`. Perintah `npm run` tetap dijalankan dari root repo.
+## Demo publik
 
-## Jalankan mode gladi
+- **Aplikasi live:** belum tersedia; tambahkan URL Render setelah Web Service selesai dideploy.
+- **Repo publik:** [github.com/ZiramBayam/montank](https://github.com/ZiramBayam/montank)
+
+## Kontrak Monad Testnet
+
+- **Chain ID:** `10143`
+- **AegisVault:** [`0xf633ae60713aEfd3983e2d17c8163a7d7328497a`](https://testnet.monadscan.com/address/0xf633ae60713aEfd3983e2d17c8163a7d7328497a)
+- **Explorer:** [Monad Testnet](https://testnet.monadscan.com/)
+- **Sumber kontrak:** [`contracts/src/AegisVault.sol`](contracts/src/AegisVault.sol)
+- **Verifikasi sumber:** [Sourcify exact match](https://sourcify.dev/server/v2/contract/10143/0xf633ae60713aEfd3983e2d17c8163a7d7328497a) (24 Oktober 2026)
+
+Alamat tersebut memiliki bytecode di Monad Testnet dan sumbernya cocok persis dengan bytecode terdeploy menurut Sourcify. Verifikasi sumber menunjukkan kecocokan kode, bukan audit keamanan independen.
+
+## Jalankan lokal
 
 Persyaratan: Node.js 20 atau lebih baru.
 
-```powershell
-Copy-Item .env.example .env
+```sh
+cp .env.example .env
 ```
 
 Atur `HOST_TOKEN` di `.env` dengan token acak panjang. Contoh membuat token:
 
-```powershell
+```sh
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-Pasang dependensi backend dan frontend lalu buat build:
+Pasang dependensi, build, lalu jalankan backend:
 
-```powershell
-npm install
-npm install --prefix frontend
+```sh
+npm ci
+npm ci --prefix frontend
 npm run build
 npm start
 ```
 
-Buka `http://localhost:3000/stage`; pemain di `/play`; host di `/host?t=<HOST_TOKEN>`. Untuk pengembangan dengan hot reload, jalankan `npm run dev` dan `npm run frontend:dev` pada dua terminal, lalu buka `http://localhost:5173/stage`.
+Buka `http://localhost:3000/stage`; pemain masuk lewat `/play`, host lewat `/host?t=<HOST_TOKEN>`. Default `REHEARSAL=true` memakai stub lokal dan tidak mengirim transaksi RPC. Lihat `/health` untuk status aplikasi.
 
-Default `REHEARSAL=true`: LLM diganti stub lokal, tidak ada transaksi RPC, dan `RAW_DEMO_RECIPIENT` kosong. Buka:
+## Fitur
+
+Backend menyediakan beberapa arena terpisah dengan kode undangan lintas perangkat, room state machine, kontrol host, pemain/rejoin, antrean, guard P1–P3, Gemini/fallback, integrasi AegisVault Monad, dedup `monadLogs`, treasury telemetry, dan QR lobby. Frontend React menyediakan layar pemain, panggung, dan host.
+
+Kode backend berada di `backend/src/`, UI di `frontend/`, dan smart contract serta script Foundry di `contracts/`. Perintah `npm run` tetap dijalankan dari root repo.
+
+## Alur permainan dan API
+
+Untuk development dengan hot reload, jalankan `npm run dev` dan `npm run frontend:dev` pada dua terminal, lalu buka `http://localhost:5173/stage`. Dalam mode gladi (`REHEARSAL=true`), LLM memakai stub lokal dan backend tidak mengirim transaksi RPC. Buka:
 
 - `GET /`, `/play`, `/stage`, `/host` — layar frontend
 - `GET /health` — status layanan dan mode
@@ -72,11 +93,7 @@ Backend mengharapkan ABI/event yang disediakan kontrak: `proposeAction`, `submit
 
 Untuk tunnel, set `BASE_URL` ke URL HTTPS dari `cloudflared` dan `TRUST_PROXY=true` hanya jika server hanya dapat dijangkau melalui proxy tepercaya. URL QR dibuat ulang dari konfigurasi saat server mulai.
 
-## Deploy demo gratis ke Render
-
-`render.yaml` membuat satu web service Render Free untuk frontend, API, dan WebSocket dari origin yang sama. Di Render Dashboard pilih **New → Blueprint**, hubungkan repo dan branch yang berisi file ini, lalu terapkan Blueprint. Build, start, dan health-check sudah ditentukan di file tersebut. Blueprint memulai dengan `REHEARSAL=true`; buka `/stage` dan `/host?t=<HOST_TOKEN>` setelah deploy. `HOST_TOKEN` dibuat oleh Render dan dapat dilihat di Environment service.
-
-Untuk mengirim transaksi Monad Testnet, isi Environment service dengan `WORKER_PRIVATE_KEYS`, `GUARDIAN_1_PRIVATE_KEY`, `GUARDIAN_2_PRIVATE_KEY`, `GUARDIAN_3_PRIVATE_KEY`, dan `EXECUTOR_PRIVATE_KEY` dari konfigurasi lokal yang aman, lalu ubah `REHEARSAL=false` dan redeploy. **Jangan masukkan `DEPLOYER_PRIVATE_KEY` ke backend.** Blueprint memakai ledger demo `claims.render.json` dan alamat yang sudah didaftarkan di testnet; jika klaim sudah dipakai atau kedaluwarsa, daftarkan klaim baru dan samakan ledger serta `DEMO_RECIPIENT`/`DEMO_AMOUNT`.
+Untuk mengirim transaksi Monad Testnet, isi Environment service dengan `WORKER_PRIVATE_KEYS`, `GUARDIAN_1_PRIVATE_KEY`, `GUARDIAN_2_PRIVATE_KEY`, `GUARDIAN_3_PRIVATE_KEY`, dan `EXECUTOR_PRIVATE_KEY` dari konfigurasi lokal yang aman, lalu ubah `REHEARSAL=false` dan redeploy. **Jangan masukkan `DEPLOYER_PRIVATE_KEY` ke backend.** Demo memakai ledger `claims.render.json` dan alamat yang sudah didaftarkan di testnet; jika klaim sudah dipakai atau kedaluwarsa, daftarkan klaim baru dan samakan ledger serta `DEMO_RECIPIENT`/`DEMO_AMOUNT`.
 
 Render Free menidurkan service setelah 15 menit tanpa trafik dan filesystem-nya tidak persisten. Panaskan `/health` sebelum demo; setelah service bangun ulang, room dapat berganti. Perubahan status ledger lokal dapat hilang saat service tidur atau restart, sedangkan kontrak tetap mencegah klaim on-chain yang sudah dipakai dibayar lagi.
 
