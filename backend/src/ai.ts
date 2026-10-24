@@ -21,13 +21,27 @@ async function geminiGenerate(prompt: string, timeoutMs: number, schema?: unknow
       }),
     });
     const json = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>; error?: { message?: string } };
-    if (!response.ok) throw new Error(json.error?.message ?? `Gemini returned HTTP ${response.status}`);
+    if (!response.ok) {
+      if (response.status === 429) markRateLimited();
+      throw new Error(json.error?.message ?? `Gemini returned HTTP ${response.status}`);
+    }
     const text = json.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '';
     if (!text) throw new Error('Gemini returned no content');
     return text;
   } finally {
     clearTimeout(timer);
   }
+}
+
+let rateLimitedUntil = 0;
+function markRateLimited(): void {
+  rateLimitedUntil = Date.now() + 30_000;
+}
+
+// Slow the processing loop automatically right after Gemini rate-limits us (PRD §8).
+export function serviceIntervalMs(baseMs: number): number {
+  if (Date.now() >= rateLimitedUntil) return baseMs;
+  return Math.min(baseMs * 3, 3600);
 }
 
 function cleanVictimResult(value: unknown, source: VictimResult['source']): VictimResult | undefined {

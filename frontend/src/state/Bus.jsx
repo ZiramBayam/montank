@@ -181,7 +181,11 @@ export function BusProvider({ children, role: appRole }) {
         }
         else if (m.type === "join_rejected") {
           localStorage.removeItem("pf_player_id");
-          push((prev) => ({ ...prev, joinError: m.reason, playerId: null, activeAttackId: null, queuePosition: null }));
+          if (m.reason === "SESSION_EXPIRED") {
+            push((prev) => ({ ...prev, joinError: null, playerId: null, nickname: null, activeAttackId: null, queuePosition: null }));
+          } else {
+            push((prev) => ({ ...prev, joinError: m.reason, playerId: null, activeAttackId: null, queuePosition: null }));
+          }
         }
         else if (m.type === "room_rejected") push((prev) => ({ ...prev, joinError: "ROOM_NOT_FOUND" }));
         else if (m.type === "scoreboard") push((prev) => ({ ...prev, players: mergePlayers(prev.players, m.top), myScore: m.score, myRank: m.rank }));
@@ -278,7 +282,7 @@ export function BusProvider({ children, role: appRole }) {
   return <RoomCtx.Provider value={{ state, api, mode }}>{children}</RoomCtx.Provider>;
 }
 
-const DURATIONS = { LOBBY_OPEN: 60_000, ROUND_1_RAW: 60_000, ROUND_2_SHIELD: 120_000, GAME_OVER: 60_000 };
+const DURATIONS = { LOBBY_OPEN: 60_000, ROUND_1_RAW: 45_000, ROUND_2_SHIELD: 45_000, GAME_OVER: 60_000 };
 function applyLocalMessage(message, push, ref) {
   if (!message) return;
   if (message.type === "join") {

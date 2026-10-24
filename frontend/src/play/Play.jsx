@@ -14,8 +14,8 @@ const TIER_SFX = { ATTEMPT: "t10", LAYER0: "t50", VICTIM: "t100", G1: "t250", G2
 const BOLT_MS = 380;
 const GAP_MS = 420;
 const BOOT_MS = 900;
-const RAW_ROUND_MS = 60_000;
-const SHIELD_ROUND_MS = 120_000;
+const RAW_ROUND_MS = 45_000;
+const SHIELD_ROUND_MS = 45_000;
 const BOOT_LINES = ["CONNECTING TO ARENA…", "SYNC LEDGER…", "ARMING PROMPT ENGINE…"];
 const GUARD_FALLBACK = [
   { clear: false, ms: 0 },
@@ -41,6 +41,7 @@ export default function Play() {
   const [startError, setStartError] = useState("");
   const seen = useRef(new Set());
   const bootTimer = useRef(null);
+  const hadSession = useRef(false);
   const [localFlight, setLocalFlight] = useState(null);
 
   useEffect(() => { probeFiles(); }, []);
@@ -51,8 +52,15 @@ export default function Play() {
     }
   }, [state.playerId, state.nickname]);
   useEffect(() => {
-    if (state.joinError === "SESSION_EXPIRED") setJoined(false);
-  }, [state.joinError]);
+    if (state.playerId) {
+      hadSession.current = true;
+      return;
+    }
+    if (hadSession.current) {
+      hadSession.current = false;
+      setJoined(false);
+    }
+  }, [state.playerId]);
   useEffect(() => {
     if (state.lastAttackResult) setInFlight(false);
   }, [state.lastAttackResult]);

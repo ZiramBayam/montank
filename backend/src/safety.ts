@@ -1,4 +1,5 @@
 import type { AttackPayload, PromptQuality } from './protocol.js';
+import { config } from './config.js';
 
 const MANUAL_MAX_LENGTH = 1000;
 const BANNED_TERMS = [
@@ -62,6 +63,7 @@ export function validateAttack(payload: unknown, manual: unknown): { ok: true; t
   }
   if (manual !== undefined && typeof manual !== 'string') return { ok: false, reason: 'INVALID_PAYLOAD' };
   const usesManual = typeof manual === 'string' && manual.length > 0;
+  if (usesManual && !config.manualAttacksEnabled) return { ok: false, reason: 'MANUAL_DISABLED' };
   if (usesManual && manual.length > MANUAL_MAX_LENGTH) return { ok: false, reason: 'MANUAL_TOO_LONG' };
   if (!usesManual && (!normalized.kedok || !normalized.alasan || !normalized.taktik)) return { ok: false, reason: 'INVALID_PAYLOAD' };
   const text = usesManual ? manual as string : buildAttackText(normalized);

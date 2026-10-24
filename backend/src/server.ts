@@ -8,7 +8,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { isAddress, type Address } from 'viem';
 import { config } from './config.js';
 import { ChainService } from './chain.js';
-import { runP3, runVictim, type P3Result } from './ai.js';
+import { runP3, runVictim, serviceIntervalMs, type P3Result } from './ai.js';
 import { GuardianService } from './guards.js';
 import { displayAttack, evaluatePromptQuality, validNickname, validateAttack } from './safety.js';
 import { Room } from './room.js';
@@ -38,7 +38,7 @@ interface ArenaContext {
 }
 
 const app = Fastify({ logger: true, bodyLimit: 2048, trustProxy: config.trustProxy });
-await app.register(websocket, { options: { maxPayload: 8192, perMessageDeflate: false } });
+await app.register(websocket, { options: { maxPayload: 2048, perMessageDeflate: false } });
 await app.register(fastifyStatic, { root: resolve(process.cwd(), 'frontend/dist'), wildcard: true });
 const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_RE = /^PF-[ABCDEFGHJKLMNPQRSTUVWXYZ2-9]{4}$/;
@@ -866,7 +866,7 @@ async function start(): Promise<void> {
       broadcast(arena, 'host', 'host_status', hostStatus(arena));
     }
   }, 250);
-  workerTimer = setInterval(() => {
+  const runWorkerTick = (): void => {
     for (const arena of arenas.values()) {
       if (arena.workerBusy || arena.room.queue.length === 0) continue;
       arena.workerBusy = true;
@@ -880,7 +880,9 @@ async function start(): Promise<void> {
         })
         .finally(() => { arena.workerBusy = false; });
     }
-  }, config.serviceIntervalMs);
+    workerTimer = setTimeout(runWorkerTick, serviceIntervalMs(config.serviceIntervalMs));
+  };
+  workerTimer = setTimeout(runWorkerTick, config.serviceIntervalMs);
   spotlightTimer = setInterval(() => { for (const arena of arenas.values()) publishSpotlight(arena); }, 3000);
   spotlightTimer.unref();
 }
@@ -888,7 +890,7 @@ async function start(): Promise<void> {
 async function stop(): Promise<void> {
   clearInterval(scoreboardTimer);
   clearInterval(phaseTimer);
-  clearInterval(workerTimer);
+  clearTimeout(workerTimer);
   clearInterval(spotlightTimer);
   for (const arena of arenas.values()) arena.room.stop();
   chain.stop();

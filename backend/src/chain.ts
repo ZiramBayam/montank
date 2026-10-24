@@ -156,7 +156,7 @@ export class ChainService {
             address: config.vaultAddress, abi, functionName: 'submitDecision',
             args: [actionId, vote.decision === 'VETO', vote.reasonCode],
             gas: config.decisionGasLimit,
-            maxPriorityFeePerGas: config.maxPriorityFeePerGas,
+            maxPriorityFeePerGas: config.guardianPriorityFeePerGas,
           });
           this.guardianSubmissions.add(key);
           void this.publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 30_000 }).catch((error) => {
