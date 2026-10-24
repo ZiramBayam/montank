@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useBus } from "../state/RoomCtx.js";
 import { PHASE } from "../state/phases.js";
+import { roomFromUrl } from "../state/room.js";
 import { HONEST } from "../data/deck.js";
 import Sprite from "../components/Sprite.jsx";
 import { unlockAudio } from "../state/sfx.js";
@@ -15,6 +16,7 @@ const PHASES = [
 
 export default function Host() {
   const { state, api, mode } = useBus();
+  const room = roomFromUrl();
   const [log, setLog] = useState([]);
   useEffect(() => { unlockAudio(); }, []);
 
@@ -31,10 +33,11 @@ export default function Host() {
         <Sprite name="shield" size={24} />
         <b>HOST PANEL</b>
         <span className={`badge ${mode === "real" ? "" : "badge--sim"}`}>
-          {mode === "real" ? "WS: LIVE" : "MOCK (no backend)"}
+          {mode === "real" ? "WS: LIVE" : room ? "ROOM DEMO (cross-tab)" : "MOCK (no backend)"}
         </span>
-        <a className="badge" href="/stage" target="_stage" rel="noreferrer">open /stage ↗</a>
-        <a className="badge" href="/play" target="_play" rel="noreferrer">open /play ↗</a>
+        {room && <b className="badge">ROOM {room}</b>}
+        <a className="badge" href={room ? `/stage?room=${room}` : "/stage"} target="_stage" rel="noreferrer">open /stage ↗</a>
+        <a className="badge" href={room ? `/play?room=${room}` : "/play"} target="_play" rel="noreferrer">open /play ↗</a>
       </header>
 
       <section className="card hzone">

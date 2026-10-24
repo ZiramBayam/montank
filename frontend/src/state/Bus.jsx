@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { RoomCtx } from "./RoomCtx.js";
+import { roomFromUrl, newTabToken } from "./room.js";
 import { QUEUE, ROWS, composeAttack } from "../data/deck.js";
 import { PHASE } from "./phases.js";
 
@@ -20,6 +21,9 @@ const CONFIG = {
   servingMs: 1200, // PRD 2.1: layanan ~1 serangan / 1,2 s
   virtual: !qs.get("ws") && !import.meta.env.VITE_WS_URL,
 };
+
+/* Kode room dari URL (?room=PF-XXXX) — memakai mesin lintas-tab; tanpa kode = mock mandiri */
+const roomCode = roomFromUrl();
 
 const BOTS = [
   "palau_mon", "kingLambe", "satriaRampok", "monadLoko", "budi_99",
@@ -96,6 +100,8 @@ export function BusProvider({ children }) {
     ref.current = state;
   }, [state]);
   const ws = useRef(null);
+  const bcRef = useRef(null); // BroadcastChannel room lintas-tab
+  const tabTok = useRef(null);
   const push = useCallback((fn) => setState((prev) => fn(prev)), []);
 
   const cmd = useCallback(
@@ -104,7 +110,11 @@ export function BusProvider({ children }) {
         ws.current.send(JSON.stringify({ type, ...payload }));
         return;
       }
-      // jelaskan intent sebagai perubahan state (mock)
+      if (mode === "client" && bcRef.current) {
+        bcRef.current.postMessage({ type, ...payload });
+        return;
+      }
+      // jelaskan intent sebagai perubahan state (mock / engine room)
       applyHost(type, payload, push, ref);
     },
     [mode, push],
@@ -135,9 +145,78 @@ export function BusProvider({ children }) {
     };
   }, [push]);
 
+  // ===== Room lintas-tab (demo tanpa backend) =====
+  // Satu tab jadi ENGINE (menjalankan mesin mock & menyiarkan state), tab lain CLIENT.
+  // Pemilihan lewat heartbeat localStorage; kalau tab engine mati, tab terlama merebut.
   useEffect(() => {
-    if (mode !== "mock") return;
-    const t = setInterval(() => tickEngine(push, ref, CONFIG.servingMs), 250);
+    if (!roomCode || typeof BroadcastChannel === "undefined") return undefined;
+    const bc = new BroadcastChannel(`pf_room_${roomCode}`);
+    bcRef.current = bc;
+    if (!tabTok.current) tabTok.current = newTabToken();
+    const myTok = tabTok.current;
+    const hbKey = `pf_room_${roomCode}_hb`;
+    let chosen = null; // "engine" | "client"
+    const hbGet = () => {
+      try {
+        return JSON.parse(localStorage.getItem(hbKey) || "null");
+      } catch {
+        return null;
+      }
+    };
+    const claim = () => {
+      const h = hbGet();
+      if (h && h.token !== myTok && Date.now() - h.at < 2600) {
+        chosen = "client";
+        setMode("client");
+        return;
+      }
+      localStorage.setItem(hbKey, JSON.stringify({ token: myTok, at: Date.now() }));
+      setTimeout(() => {
+        const h2 = hbGet();
+        chosen = h2 && h2.token === myTok ? "engine" : "client";
+        setMode(chosen);
+      }, 60);
+    };
+    claim();
+    const iv = setInterval(() => {
+      if (chosen === "engine") {
+        localStorage.setItem(hbKey, JSON.stringify({ token: myTok, at: Date.now() }));
+      } else if (chosen === "client") {
+        const h = hbGet();
+        if (!h || Date.now() - h.at > 2600) {
+          chosen = null;
+          claim();
+        }
+      }
+    }, 1000);
+    bc.onmessage = (ev) => {
+      let m;
+      try {
+        m = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+      if (m.type === "room") {
+        if (chosen === "client") setState((prev) => ({ ...prev, ...m.state }));
+        return;
+      }
+      if (chosen === "engine") applyHost(m.type, m, push, ref);
+    };
+    return () => {
+      clearInterval(iv);
+      bc.close();
+      bcRef.current = null;
+    };
+  }, [push]);
+
+  useEffect(() => {
+    if (mode !== "mock" && mode !== "engine") return undefined;
+    const t = setInterval(() => {
+      tickEngine(push, ref, CONFIG.servingMs);
+      if (mode === "engine" && bcRef.current) {
+        bcRef.current.postMessage({ type: "room", state: ref.current });
+      }
+    }, 250);
     return () => clearInterval(t);
   }, [mode, push]);
 

@@ -127,7 +127,7 @@ function Badge({ children, sim, warn }) {
 
 /* ---------- Lobby: QR + nickname live ---------- */
 function Lobby({ state }) {
-  const url = `${window.location.origin}/play`;
+  const url = `${window.location.origin}/play${window.location.search}`;
   const q = useMemo(() => QRCode.toDataURL(url, { width: 400, margin: 2 }), [url]);
   const joined = Object.keys(state.players);
   return (
