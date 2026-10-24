@@ -115,7 +115,7 @@ export default function Play() {
       <div className="play">
         <header className="phead">
           <Sprite name="shield" size={26} />
-          <b>PROMPTFORTRESS</b>
+          <b>MONTEN</b>
         </header>
         <section className="card pjoin">
           <h1>Join The Raid</h1>
@@ -141,7 +141,7 @@ export default function Play() {
       <div className="play">
         <header className="phead">
           <Sprite name="shield" size={26} />
-          <b>PROMPTFORTRESS</b>
+          <b>MONTEN</b>
         </header>
         <section className="card pjoin">
           <h1>Join The Raid</h1>

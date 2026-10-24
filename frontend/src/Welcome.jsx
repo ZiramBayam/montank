@@ -55,7 +55,7 @@ export default function Welcome() {
             <Sprite name="mascotB" size={34} />
           </span>
         </span>
-        <h1>PROMPTFORTRESS</h1>
+        <h1>MONTEN</h1>
         <p className="dim">
           Two-round red-team arena. Lure the Cashier Agent, then dodge the AegisVault guards — in 5 minutes.
         </p>

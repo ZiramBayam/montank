@@ -516,7 +516,7 @@ function protocolMessage(client: Client, raw: string): void {
   push(client, 'error', { reason: 'UNKNOWN_MESSAGE' });
 }
 
-app.get('/health', async () => ({ ok: true, service: 'PromptFortress backend', phase: room.phase, rehearsal: room.rehearsal, chainConfigured: chain.configured }));
+app.get('/health', async () => ({ ok: true, service: 'Monten backend', phase: room.phase, rehearsal: room.rehearsal, chainConfigured: chain.configured }));
 app.get('/', async (_request, reply) => reply.sendFile('index.html'));
 app.get('/api/lobby', async (request) => {
   const baseUrl = publicBaseUrl(request);
@@ -580,7 +580,7 @@ async function start(): Promise<void> {
   await guardians.loadClaims();
   chain.start();
   await app.listen({ port: config.port, host: config.host });
-  app.log.info(`PromptFortress listening on ${config.host}:${config.port}; REHEARSAL=${room.rehearsal}`);
+  app.log.info(`Monten listening on ${config.host}:${config.port}; REHEARSAL=${room.rehearsal}`);
   scoreboardTimer = setInterval(() => {
     if (Date.now() - lastScoreboardAt >= 1000) { lastScoreboardAt = Date.now(); sendScoreboards(); }
     broadcastState();
