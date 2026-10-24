@@ -14,6 +14,8 @@ const TIER_SFX = { ATTEMPT: "t10", LAYER0: "t50", VICTIM: "t100", G1: "t250", G2
 const BOLT_MS = 380;
 const GAP_MS = 420;
 const BOOT_MS = 900;
+const RAW_ROUND_MS = 60_000;
+const SHIELD_ROUND_MS = 120_000;
 const BOOT_LINES = ["CONNECTING TO ARENA…", "SYNC LEDGER…", "ARMING PROMPT ENGINE…"];
 const GUARD_FALLBACK = [
   { clear: false, ms: 0 },
@@ -188,6 +190,9 @@ export default function Play() {
   const coolLeft = cooling ? Math.ceil((coolUntil - now) / 1000) : QUEUE.COOLDOWN_S;
   const queueFull = state.queueWaiting >= QUEUE.MAX;
   const attackActive = inFlight || Boolean(state.activeAttackId);
+  const phaseDuration = raw ? RAW_ROUND_MS : SHIELD_ROUND_MS;
+  const phaseRemainingMs = Math.max(0, state.startedAt + phaseDuration - now);
+  const finishRemainingMs = raw ? phaseRemainingMs + SHIELD_ROUND_MS : phaseRemainingMs;
   const transactionUrl = state.attacks.find((attack) => attack.txUrl)?.txUrl ?? state.breachRaw?.txUrl ?? null;
 
   const send = () => {
@@ -278,6 +283,7 @@ export default function Play() {
         <WaitingRoom nick={nick} playerCount={playerCount} others={standing} ownerToken={ownerToken} canStart={Boolean(state.playerId)} onStart={startGame} starting={starting} startError={startError} roundStartsAt={state.roundStartsAt} />
       ) : (
         <>
+          <GameTimeline phase={state.phase} phaseRemainingMs={phaseRemainingMs} finishRemainingMs={finishRemainingMs} />
           {/* 1 Leaderboard */}
           <section className="iboard card">
             <h2 className="purple">Scoreboard</h2>
@@ -492,6 +498,29 @@ function StatusLine({ stage, outcome }) {
   }
   if (stage === "fight") return <p className="astatus dim blink-idle">Guards judging…</p>;
   return <p className="astatus dim blink-idle">ATTACK TO SCORE</p>;
+}
+
+function formatRemaining(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function GameTimeline({ phase, phaseRemainingMs, finishRemainingMs }) {
+  const isRaw = phase === PHASE.RAW;
+  return (
+    <section className="game-timeline card" aria-label="Waktu permainan">
+      <div className="timeline-item">
+        <span className="dim">{isRaw ? "Ronde berikutnya · Ronde 2" : "Ronde berikutnya"}</span>
+        <b>{isRaw ? formatRemaining(phaseRemainingMs) : "Ronde terakhir"}</b>
+      </div>
+      <div className="timeline-item">
+        <span className="dim">Permainan selesai dalam</span>
+        <b>{formatRemaining(finishRemainingMs)}</b>
+      </div>
+    </section>
+  );
 }
 
 function FinalBoard({ rank, myScore, standing, me, txUrl, rehearsal }) {
