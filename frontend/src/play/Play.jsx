@@ -223,11 +223,7 @@ export default function Play() {
         if (!response.ok) throw new Error("Tidak dapat keluar dari room. Periksa koneksi lalu coba lagi.");
       }
       localStorage.removeItem("pf_player_id");
-      const destination = new URL("/", window.location.origin);
-      if (roomCode) destination.searchParams.set("room", roomCode);
-      if (ownerToken) destination.searchParams.set("owner", ownerToken);
-      destination.searchParams.set("left", "1");
-      window.location.href = destination.toString();
+      window.location.href = "/";
     } catch (leaveError) {
       setLeaveError(leaveError instanceof Error ? leaveError.message : "Tidak dapat keluar dari room. Coba lagi.");
       setLeaving(false);
