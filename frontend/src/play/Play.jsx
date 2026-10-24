@@ -274,7 +274,7 @@ export default function Play() {
       {over ? (
         <FinalBoard rank={rank} myScore={myScore} standing={standing} me={nick} />
       ) : lobby ? (
-        <WaitingRoom nick={nick} playerCount={playerCount} others={standing} ownerToken={ownerToken} canStart={Boolean(state.playerId)} onStart={startGame} starting={starting} startError={startError} />
+        <WaitingRoom nick={nick} playerCount={playerCount} others={standing} ownerToken={ownerToken} canStart={Boolean(state.playerId)} onStart={startGame} starting={starting} startError={startError} roundStartsAt={state.roundStartsAt} />
       ) : (
         <>
           {/* 1 Leaderboard */}
@@ -505,10 +505,18 @@ function FinalBoard({ rank, myScore, standing, me }) {
 }
 
 /* ===== ruang tunggu (fase LOBBY — game belum dibuka host) ===== */
-function WaitingRoom({ nick, playerCount, others, ownerToken, canStart, onStart, starting, startError }) {
+function WaitingRoom({ nick, playerCount, others, ownerToken, canStart, onStart, starting, startError, roundStartsAt }) {
   const room = roomFromUrl();
   const [qr, setQr] = useState(null); // { room, url } — codec QRCode async
   const [copied, setCopied] = useState("");
+  const [, sweep] = useState(0);
+
+  useEffect(() => {
+    if (!roundStartsAt || roundStartsAt <= Date.now()) return undefined;
+    const id = setInterval(() => sweep((n) => n + 1), 250);
+    return () => clearInterval(id);
+  }, [roundStartsAt]);
+  const msLeft = roundStartsAt ? Math.max(0, roundStartsAt - Date.now()) : null;
 
   useEffect(() => {
     if (!room) return undefined;
@@ -560,8 +568,12 @@ function WaitingRoom({ nick, playerCount, others, ownerToken, canStart, onStart,
       )}
       {ownerToken && (
         <div className="wroom-owner">
-          <button className="btn btn--primary big" onClick={onStart} disabled={starting || !canStart}>
-            {starting ? "MEMULAI…" : canStart ? "MULAI PERMAINAN" : "BERGABUNG DULU…"}
+          <button
+            className="btn btn--primary big"
+            onClick={onStart}
+            disabled={starting || !canStart || !!msLeft}
+          >
+            {starting || msLeft ? "MEMULAI…" : canStart ? "MULAI PERMAINAN" : "BERGABUNG DULU…"}
           </button>
           <p className="dim">Khusus pembuat room. Setelah mulai, kedua ronde berjalan otomatis.</p>
           {startError && <p className="err" role="alert">{startError}</p>}
@@ -592,7 +604,10 @@ function WaitingRoom({ nick, playerCount, others, ownerToken, canStart, onStart,
           <Sprite name="mascotC" size={30} />
         </span>
       </span>
-      <p className="astatus dim blink-idle">WAITING FOR THE HOST…</p>
+      {msLeft !== null && <p className="wcountlabel dim small">ROUND 1 STARTS IN</p>}
+      {msLeft !== null
+        ? <p className="wcount t-score">{Math.max(1, Math.ceil(msLeft / 1000))}</p>
+        : <p className="astatus dim blink-idle">WAITING FOR THE HOST…</p>}
       <ul className="wroomhint dim">
         <li>
           <b>Round 1 RAW</b> — no guards. Catch the Cashier Agent completely off guard.

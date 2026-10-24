@@ -19,6 +19,7 @@ export class Room {
   phaseDuration = PHASE_DURATIONS.LOBBY_OPEN;
   gameStartedAt: number | null = null;
   gameEndedAt: number | null = null;
+  roundStartsAt: number | null = null;
   vaultOn = false;
   rehearsal = config.rehearsal;
   panicBlur = config.panicBlur;
@@ -67,6 +68,7 @@ export class Room {
     this.gameEndedAt = null;
     this.rehearsal = config.rehearsal;
     this.panicBlur = config.panicBlur;
+    this.roundStartsAt = null;
     this.attackCounter = 0;
     this.schedulePersist();
   }
@@ -167,6 +169,7 @@ export class Room {
       this.gameEndedAt = now;
     }
     this.phase = phase;
+    this.roundStartsAt = null;
     this.phaseStartedAt = now;
     this.phaseDuration = PHASE_DURATIONS[phase];
     if (phase === 'LOBBY_OPEN' || phase === 'ROUND_1_RAW') this.vaultOn = false;
@@ -203,6 +206,7 @@ export class Room {
       vaultOn: this.vaultOn,
       rehearsal: this.rehearsal,
       panicBlur: this.panicBlur,
+      roundStartsAt: this.roundStartsAt,
     };
   }
 

@@ -158,7 +158,7 @@ function broadcast(arena: ArenaContext, channel: 'play' | 'stage' | 'host' | 'al
 
 function broadcastState(arena: ArenaContext, force = false): void {
   const state = arena.room.gameState();
-  const signature = `${state.phase}:${state.vaultOn}:${state.rehearsal}:${state.panicBlur}`;
+  const signature = `${state.phase}:${state.vaultOn}:${state.rehearsal}:${state.panicBlur}:${state.roundStartsAt ?? 0}`;
   const now = Date.now();
   if (!force && signature === arena.lastStateSignature && now - arena.lastStateSentAt < 1000) return;
   arena.lastStateSignature = signature;
@@ -705,6 +705,8 @@ app.get('/api/rooms/:roomCode', async (request) => {
   const { roomCode } = request.params as { roomCode: string };
   return { valid: Boolean(getArena(roomCode)) };
 });
+const ROOM_START_COUNTDOWN_MS = 3000;
+
 app.post('/api/rooms/:roomCode/start', async (request, reply) => {
   const { roomCode } = request.params as { roomCode: string };
   const arena = getArena(roomCode);
@@ -717,7 +719,15 @@ app.post('/api/rooms/:roomCode/start', async (request, reply) => {
     return reply.code(409).send({ error: 'CREATOR_NOT_JOINED' });
   }
   if (arena.room.phase !== 'LOBBY_OPEN') return reply.code(409).send({ error: 'GAME_ALREADY_STARTED' });
-  await hostCommand(arena, 'ROUND1', {});
+  if (arena.room.roundStartsAt) return { ok: true, state: arena.room.gameState() };
+  const startsAt = Date.now() + ROOM_START_COUNTDOWN_MS;
+  arena.room.roundStartsAt = startsAt;
+  broadcastState(arena, true);
+  setTimeout(() => {
+    if (arena.room.roundStartsAt === startsAt && arena.room.phase === 'LOBBY_OPEN') {
+      void hostCommand(arena, 'ROUND1', {}).catch((error) => app.log.error(error, 'room start failed'));
+    }
+  }, ROOM_START_COUNTDOWN_MS + 30);
   return { ok: true, state: arena.room.gameState() };
 });
 app.post('/api/rooms/:roomCode/leave', async (request, reply) => {
