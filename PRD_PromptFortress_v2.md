@@ -1,4 +1,4 @@
-# PRD & Spesifikasi Teknis: Monten (Aegis-600) — v2
+# PRD & Spesifikasi Teknis: Montank (Aegis-600) — v2
 
 **Event:** Monad Blitz Jogja Vol. 2
 **Kategori Produk:** On-Chain AI Agent Security Vault & Live Multiplayer Red-Teaming Arena
@@ -510,7 +510,7 @@ Bento grid 4 zona (16:9, font besar):
 ### 10.5 Integrasi & gladi kotor (porsi akhir)
 
 * [ ] Tembak serentak dari ≥10 tab/HP: cek tabrakan nonce, rate limit RPC dan LLM, perilaku antrean saat penuh.
-* [ ] Latih demo 3 menit dengan stopwatch sesuai bagian 2, termasuk skenario cadangan bagian 8.
+* [ ] Latih demo 5 menit dengan stopwatch sesuai bagian 2, termasuk skenario cadangan bagian 8.
 * [ ] **Rekam run gladi terbaik dengan ponsel** — fallback demo darurat (P1; nol biaya, tanpa produksi). Jangan dibuat video "pesponsoran", cukup bukti flow.
 * [ ] Cek akhir: tidak ada angka di layar/slide yang bukan hasil ukur atau saldo nyata.
 

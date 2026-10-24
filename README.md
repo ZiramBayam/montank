@@ -1,6 +1,6 @@
-# Monten — backend + frontend
+# Montank — backend + frontend
 
-Full-stack demo Monten / Aegis-600. Backend menyediakan room state machine, host controls, pemain/rejoin, antrean, guard P1–P3, Gemini/fallback, integrasi AegisVault Monad, dedup `monadLogs`, treasury telemetry, dan QR lobby. Frontend React menyediakan layar pemain, panggung, dan host.
+Full-stack demo Montank / Aegis-600. Backend menyediakan room state machine, host controls, pemain/rejoin, antrean, guard P1–P3, Gemini/fallback, integrasi AegisVault Monad, dedup `monadLogs`, treasury telemetry, dan QR lobby. Frontend React menyediakan layar pemain, panggung, dan host.
 
 ## Jalankan mode gladi
 

@@ -49,14 +49,6 @@
   image-rendering: pixelated;
 }
 
-.wroles {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-.wroles .btn { min-width: 86px; text-align: center; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
-
 .wfind { display: flex; flex-direction: column; gap: 10px; }
 .welcome input {
   font-family: var(--f-pixel);

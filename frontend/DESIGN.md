@@ -1,4 +1,4 @@
-# DESIGN.md v2 — PromptFortress (Neobrutalism Dark × 8-bit)
+# DESIGN.md v2 — Montank (Neobrutalism Dark × 8-bit)
 
 Sumber kebenaran visual. Palet, border, dan struktur wajib mengikuti PRD Bagian 7
 (Neobrutalism Dark). Bahasa detail (font pixel, sprite, motion bertingkat)
