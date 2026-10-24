@@ -33,7 +33,15 @@
 }
 .welcome .btn { min-height: 48px; }
 
+.wchoices { display: flex; flex-direction: column; gap: 12px; }
+
 .wfind { display: flex; flex-direction: column; gap: 10px; }
+.wfind label {
+  color: var(--paper-dim);
+  font-family: var(--f-display);
+  font-size: 0.72rem;
+  text-align: left;
+}
 .welcome input {
   font-family: var(--f-pixel);
   font-size: 1.2rem;
@@ -49,6 +57,18 @@
 }
 .welcome input:focus { border-color: var(--yellow); }
 
+.wback {
+  align-self: center;
+  border: 0;
+  padding: 7px 10px 0;
+  background: transparent;
+  color: var(--paper-dim);
+  font: inherit;
+  cursor: pointer;
+}
+.wback:hover { color: var(--yellow); }
+.wback:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+
 .werr {
   color: var(--red);
   font-family: var(--f-score);
@@ -57,9 +77,11 @@
   margin: 0;
 }
 
-.welcome .footnote {
-  max-width: 54ch;
-  font-size: 0.8rem;
-  line-height: 1.6;
+.wnotice {
   margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--yellow);
+  color: var(--yellow);
+  font-size: 0.9rem;
+  line-height: 1.5;
 }

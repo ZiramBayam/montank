@@ -36,6 +36,9 @@ function initial() {
   return {
     phase: PHASE.LOBBY,
     startedAt: Date.now(),
+    gameStartedAt: null,
+    gameEndedAt: null,
+    gameElapsedMs: 0,
     vaultOn: false,
     panic: false,
     virtual: CONFIG.virtual,
@@ -105,9 +108,20 @@ export function BusProvider({ children, role: appRole }) {
   const outbox = useRef([]);
   const push = useCallback((fn) => setState((prev) => fn(prev)), []);
 
-  const send = useCallback((message) => {
-    if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify(message));
-    else if (ws.current?.readyState === WebSocket.CONNECTING) outbox.current.push(message);
+  const send = useCallback((message, { queueWhileConnecting = true } = {}) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      try {
+        ws.current.send(JSON.stringify(message));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    if (queueWhileConnecting && ws.current?.readyState === WebSocket.CONNECTING) {
+      outbox.current.push(message);
+      return true;
+    }
+    return false;
   }, []);
 
   useEffect(() => {
@@ -121,7 +135,7 @@ export function BusProvider({ children, role: appRole }) {
       if (dead) return;
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const url = new URL(CONFIG.wsUrl || `${protocol}//${window.location.host}/ws/${role}`);
-      if (role === "play" && roomCode) url.searchParams.set("room", roomCode);
+      if (roomCode) url.searchParams.set("room", roomCode);
       if (["host", "stage"].includes(role) && (qs.has("t") || qs.has("token"))) url.searchParams.set("t", qs.get("t") || qs.get("token"));
       const socket = new WebSocket(url);
       ws.current = socket;
@@ -141,6 +155,25 @@ export function BusProvider({ children, role: appRole }) {
       try {
         const m = JSON.parse(ev.data);
         if (m.type === "state") push((prev) => ({ ...prev, ...mapServerState(m, prev) }));
+        else if (m.type === "game_reset") push((prev) => {
+          const base = initial();
+          const players = Object.fromEntries((m.players ?? []).map((player) => [player.nickname, { score: player.score ?? 0 }]));
+          return {
+            ...base,
+            ...mapServerState(m.state, prev),
+            playerId: prev.playerId,
+            nickname: prev.nickname,
+            hostAuthorized: prev.hostAuthorized,
+            cooldownUntil: 0,
+            lastAttackResult: null,
+            playerCount: m.players?.length ?? prev.playerCount ?? 0,
+            players,
+            bank: prev.bank,
+            lobbyInfo: prev.lobbyInfo,
+            txExplorerBaseUrl: prev.txExplorerBaseUrl,
+            telemetry: { totalAttacks: 0, vetoes: 0, breaches: 0, medianEndToEndMs: null },
+          };
+        });
         else if (m.type === "joined") {
           localStorage.setItem("pf_player_id", m.playerId);
           localStorage.setItem("pf_nick", m.nickname);
@@ -152,7 +185,12 @@ export function BusProvider({ children, role: appRole }) {
         }
         else if (m.type === "room_rejected") push((prev) => ({ ...prev, joinError: "ROOM_NOT_FOUND" }));
         else if (m.type === "scoreboard") push((prev) => ({ ...prev, players: mergePlayers(prev.players, m.top), myScore: m.score, myRank: m.rank }));
-        else if (m.type === "player_joined") push((prev) => ({ ...prev, playerCount: m.count }));
+        else if (m.type === "player_joined") push((prev) => ({ ...prev, playerCount: m.count, players: m.nickname ? { ...prev.players, [m.nickname]: prev.players[m.nickname] ?? { score: 0 } } : prev.players }));
+        else if (m.type === "player_left") push((prev) => {
+          const players = { ...prev.players };
+          if (m.nickname) delete players[m.nickname];
+          return { ...prev, playerCount: m.count ?? Math.max(0, (prev.playerCount ?? 0) - 1), players };
+        });
         else if (m.type === "queue") push((prev) => ({ ...prev, queueWaiting: m.count ?? prev.queueWaiting }));
         else if (m.type === "queue_update" || m.type === "attack_ack") push((prev) => ({ ...prev, queuePosition: m.queuePos ?? prev.queuePosition, queueEtaMs: m.estMs ?? prev.queueEtaMs, activeAttackId: m.attackId ?? prev.activeAttackId }));
         else if (m.type === "killfeed") push((prev) => ({ ...prev, attacks: upsertAttack(prev.attacks, m.entry) }));
@@ -163,7 +201,19 @@ export function BusProvider({ children, role: appRole }) {
         else if (m.type === "panic_blur") push((prev) => ({ ...prev, panic: Boolean(m.active) }));
         else if (m.type === "attack_status") push((prev) => ({ ...prev, activeAttackId: m.attackId ?? null, queuePosition: ["QUEUED"].includes(m.status) ? prev.queuePosition : null }));
         else if (m.type === "attack_result") push((prev) => updateAttackResult(prev, m));
-        else if (m.type === "attack_rejected") push((prev) => ({ ...prev, attackError: m.reason, activeAttackId: null, queuePosition: null }));
+        else if (m.type === "attack_rejected") {
+          const messages = {
+            NOT_JOINED: "Sesi pemain belum tersambung ke room. Coba muat ulang room.",
+            ROUND_CLOSED: "Ronde belum dibuka atau sudah selesai.",
+            QUEUE_FULL: "Antrean serangan penuh. Coba lagi sebentar.",
+            COOLDOWN: "Serangan masih dalam cooldown. Tunggu sebentar.",
+            ACTIVE_ATTACK: "Serangan sebelumnya masih diproses.",
+            CONTENT_FILTERED: "Prompt berisi kata yang tidak diizinkan.",
+            MANUAL_TOO_LONG: "Prompt terlalu panjang. Maksimal 1.000 karakter.",
+            MANUAL_DISABLED: "Prompt manual tidak tersedia di server ini. Muat ulang halaman untuk mengambil versi terbaru.",
+          };
+          push((prev) => ({ ...prev, attackError: messages[m.reason] ?? m.reason ?? "Serangan ditolak oleh server.", activeAttackId: null, queuePosition: null }));
+        }
         else if (m.type === "cooldown") push((prev) => ({ ...prev, cooldownUntil: m.untilEpochSec * 1000 }));
         else if (m.type === "raw_breach") push((prev) => ({ ...prev, breachRaw: { mon: m.mon, secs: m.secs, txUrl: m.txHash ? prev.txExplorerBaseUrl + m.txHash : null } }));
         else if (m.type === "telemetry") push((prev) => ({ ...prev, telemetry: { totalAttacks: m.totalAttacks ?? prev.telemetry.totalAttacks, vetoes: m.vetoes ?? prev.telemetry.vetoes, breaches: m.breaches ?? prev.telemetry.breaches, medianEndToEndMs: "medianEndToEndMs" in m ? m.medianEndToEndMs : prev.telemetry.medianEndToEndMs } }));
@@ -192,7 +242,7 @@ export function BusProvider({ children, role: appRole }) {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/lobby").then((response) => response.ok ? response.json() : null)
+    fetch(`/api/lobby${roomCode ? `?room=${encodeURIComponent(roomCode)}` : ""}`).then((response) => response.ok ? response.json() : null)
       .then((lobbyInfo) => {
         if (active && lobbyInfo) push((prev) => ({ ...prev, lobbyInfo, txExplorerBaseUrl: lobbyInfo.txExplorerBaseUrl || prev.txExplorerBaseUrl }));
       }).catch(() => {});
@@ -207,11 +257,12 @@ export function BusProvider({ children, role: appRole }) {
       },
       attack: (payload) => {
         push((prev) => ({ ...prev, attackError: null }));
-        send({ type: "attack", payload: payload.payload ?? {}, manual: payload.rawText });
+        return send({ type: "attack", payload: payload.payload ?? {}, manual: payload.rawText }, { queueWhileConnecting: false });
       },
       panic: () => send({ type: "host_cmd", cmd: "PANIC_BLUR" }),
       host: {
         lobby: () => send({ type: "host_cmd", cmd: "GOTO:LOBBY_OPEN" }),
+        newGame: () => send({ type: "host_cmd", cmd: "NEW_GAME" }),
         startRaw: () => send({ type: "host_cmd", cmd: "ROUND1" }),
         vaultOn: () => send({ type: "host_cmd", cmd: "VAULT_ON" }),
         gameOver: () => send({ type: "host_cmd", cmd: "GOTO:GAME_OVER" }),
@@ -219,7 +270,6 @@ export function BusProvider({ children, role: appRole }) {
         claimVendorB: () => send({ type: "host_cmd", cmd: "JUDGE_CLAIM_B" }),
         teamAttack: () => send({ type: "host_cmd", cmd: "SAMPLE_ATTACK" }),
         crowd: () => send({ type: "host_cmd", cmd: "SIM_CROWD", count: 5 }),
-        manualAttacks: (enabled) => send({ type: "host_cmd", cmd: "MANUAL_ATTACKS", enabled }),
       },
     }),
     [send],
@@ -253,7 +303,6 @@ function applyLocalMessage(message, push, ref) {
       SAMPLE_ATTACK: "host:teamAttack", SIM_CROWD: "host:crowd",
     };
     if (message.cmd === "PANIC_BLUR") applyHost("panic", {}, push, ref);
-    else if (message.cmd === "MANUAL_ATTACKS") push((previous) => ({ ...previous, manualAttacksEnabled: Boolean(message.enabled) }));
     else if (map[message.cmd]) applyHost(map[message.cmd], message, push, ref);
   }
 }
@@ -262,7 +311,9 @@ function mapServerState(server = {}, prev = initial()) {
   const phase = server.phase ?? prev.phase;
   const duration = DURATIONS[phase] ?? 60_000;
   return { phase, startedAt: Date.now() - Math.max(0, duration - (server.tMsLeft ?? duration)), vaultOn: !!server.vaultOn,
-    panic: !!server.panicBlur, virtual: !!server.rehearsal, manualAttacksEnabled: !!server.manualAttacksEnabled };
+    gameStartedAt: server.gameStartedAt ?? null, gameEndedAt: server.gameEndedAt ?? null, gameElapsedMs: server.gameElapsedMs ?? 0,
+    roundStartsAt: typeof server.roundStartsAt === "number" ? server.roundStartsAt : null,
+    panic: !!server.panicBlur, virtual: !!server.rehearsal };
 }
 function mergePlayers(previous, rows = []) {
   return Object.fromEntries(rows.map((p) => [p.nickname, { score: p.score ?? 0 }]));
@@ -345,16 +396,16 @@ function applyHost(type, p, push, ref) {
       push((st) => ({ ...st, panic: !st.panic }));
       break;
     case "host:lobby":
-      push((st) => ({ ...st, phase: PHASE.LOBBY, startedAt: now, breachRaw: null, flight: null, players: {}, pending: [], queueWaiting: 0 }));
+      push((st) => ({ ...st, phase: PHASE.LOBBY, startedAt: now, gameStartedAt: null, gameEndedAt: null, gameElapsedMs: 0, breachRaw: null, flight: null, players: {}, pending: [], queueWaiting: 0 }));
       break;
     case "host:raw":
-      push((st) => ({ ...st, phase: PHASE.RAW, startedAt: now, vaultOn: false, breachRaw: null, flight: null }));
+      push((st) => ({ ...st, phase: PHASE.RAW, startedAt: now, gameStartedAt: st.gameStartedAt ?? now, gameEndedAt: null, gameElapsedMs: 0, vaultOn: false, breachRaw: null, flight: null }));
       break;
     case "host:vaultOn":
       push((st) => ({ ...st, phase: PHASE.SHIELD, startedAt: now, vaultOn: true, flight: null, players: fillBots(st) }));
       break;
     case "host:over":
-      push((st) => ({ ...st, phase: PHASE.OVER, startedAt: now }));
+      push((st) => ({ ...st, phase: PHASE.OVER, startedAt: now, gameEndedAt: now, gameElapsedMs: st.gameStartedAt ? now - st.gameStartedAt : st.gameElapsedMs }));
       break;
     case "host:claimVendor":
       push((st) => ({

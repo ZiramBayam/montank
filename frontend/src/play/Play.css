@@ -23,6 +23,7 @@
 /* nick selalu dalam huruf persis seperti input user (Pixelify punya lowercase asli) */
 .phead .me b { color: var(--yellow); font-size: 0.95rem; font-family: var(--f-pixel); }
 .me-stats { display: flex; gap: 14px; align-items: baseline; }
+.phead-leave { min-height: 32px; padding: 5px 8px; font-size: 0.65rem; white-space: nowrap; }
 
 .center { text-align: center; }
 .purple { color: var(--purple); }
@@ -254,6 +255,8 @@
 .wroomrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
 .wroom .wcode { font-size: 2rem; letter-spacing: 0.1em; line-height: 1; cursor: pointer; }
 .wroom .wcode:active { transform: translateY(2px); }
+.wroom-owner { width: min(360px, 100%); display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.wroom-owner p { margin: 0; }
 .wcopied { margin: 0; color: var(--green); font-family: var(--f-score); font-size: 0.95rem; }
 .wqr {
   width: 184px;
@@ -265,6 +268,14 @@
   image-rendering: pixelated;
 }
 .wqrnote { font-size: 0.8rem; margin: 2px 0 0; }
+.wcountlabel { margin: 8px 0 0; }
+.wcount {
+  margin: 0;
+  font-size: 4rem;
+  line-height: 1;
+  color: var(--green);
+  animation: idle-bobs 0.5s infinite;
+}
 .wrmasc { position: relative; display: inline-flex; margin-top: 4px; }
 .wlist { width: 100%; display: flex; flex-direction: column; }
 .wlrow {
@@ -297,6 +308,8 @@
   .play { gap: 10px; padding-left: 10px; padding-right: 10px; }
   .phead { padding: 8px 10px; }
   .phead .me b { font-size: 0.85rem; }
+  .me-stats { gap: 8px; }
+  .phead-leave { padding: 5px 6px; font-size: 0.58rem; }
   .me-stats { gap: 10px; }
   .pjoin { padding: 16px 12px 20px; }
   .arena { padding: 10px 10px 8px; }

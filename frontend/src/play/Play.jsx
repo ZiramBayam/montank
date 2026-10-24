@@ -23,6 +23,7 @@ const GUARD_FALLBACK = [
 
 export default function Play() {
   const { state, api, mode } = useBus();
+  const ownerToken = new URLSearchParams(window.location.search).get("owner") || "";
   const [nick, setNick] = useState(() => localStorage.getItem("pf_nick") || "");
   const [joined, setJoined] = useState(false);
   const [booting, setBooting] = useState(false);
@@ -32,6 +33,10 @@ export default function Play() {
   const [coolUntil, setCoolUntil] = useState(0);
   const [now, setNow] = useState(0);
   const [error, setError] = useState("");
+  const [leaveError, setLeaveError] = useState("");
+  const [leaving, setLeaving] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState("");
   const seen = useRef(new Set());
   const bootTimer = useRef(null);
   const [localFlight, setLocalFlight] = useState(null);
@@ -56,7 +61,7 @@ export default function Play() {
     }
   }, [state.attackError]);
   useEffect(() => {
-    if (state.cooldownUntil) setCoolUntil(state.cooldownUntil);
+    setCoolUntil(state.cooldownUntil ?? 0);
   }, [state.cooldownUntil]);
 
   // putus timer boot saat keluar dari /play
@@ -192,14 +197,61 @@ export default function Play() {
     }
     setError("");
             const fromCards = text === composeAttack(picked);
-            api.attack({ payload: fromCards ? {
+    const sent = api.attack({ payload: fromCards ? {
               kedok: ROWS[0].cards[picked[0]].text,
               alasan: ROWS[1].cards[picked[1]].text,
               taktik: ROWS[2].cards[picked[2]].text,
             } : {}, rawText: fromCards ? undefined : text });
+    if (!sent) {
+      setError(mode === "connecting" ? "Koneksi ke server sedang disiapkan. Tunggu tersambung lalu kirim ulang." : "Koneksi ke server terputus. Serangan belum terkirim; tunggu tersambung lalu kirim ulang.");
+      return;
+    }
     setInFlight(true);
     play("ack");
     navigator.vibrate?.(15);
+  };
+
+  const leaveRoom = async () => {
+    if (leaving) return;
+    setLeaveError("");
+    setLeaving(true);
+    const roomCode = roomFromUrl();
+    const playerId = localStorage.getItem("pf_player_id");
+    try {
+      if (roomCode && playerId && mode === "real") {
+        const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/leave`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerId }),
+        });
+        if (!response.ok) throw new Error("Tidak dapat keluar dari room. Periksa koneksi lalu coba lagi.");
+      }
+      localStorage.removeItem("pf_player_id");
+      window.location.href = "/";
+    } catch (leaveError) {
+      setLeaveError(leaveError instanceof Error ? leaveError.message : "Tidak dapat keluar dari room. Coba lagi.");
+      setLeaving(false);
+    }
+  };
+
+  const startGame = async () => {
+    if (!ownerToken || starting) return;
+    setStartError("");
+    setStarting(true);
+    try {
+      const roomCode = roomFromUrl();
+      const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/start`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${ownerToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: state.playerId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error === "GAME_ALREADY_STARTED" ? "Permainan sudah dimulai." : result.error === "CREATOR_NOT_JOINED" ? "Gabung sebagai pemain sebelum memulai." : "Hak mulai room tidak valid.");
+    } catch (startError) {
+      setStartError(startError instanceof Error ? startError.message : "Tidak dapat memulai permainan.");
+    } finally {
+      setStarting(false);
+    }
   };
 
   return (
@@ -212,13 +264,17 @@ export default function Play() {
         <span className="me-stats">
           <span className="score">{myScore}</span>
           <span className="dim">#{rank > 0 ? rank : "-"}</span>
+          <button className="btn btn--go phead-leave" type="button" onClick={leaveRoom} disabled={leaving}>
+            {leaving ? "KELUAR…" : "KELUAR ROOM"}
+          </button>
         </span>
       </header>
+      {leaveError && <p className="err center" role="alert">{leaveError}</p>}
 
       {over ? (
         <FinalBoard rank={rank} myScore={myScore} standing={standing} me={nick} />
       ) : lobby ? (
-        <WaitingRoom nick={nick} playerCount={playerCount} others={standing} />
+        <WaitingRoom nick={nick} playerCount={playerCount} others={standing} ownerToken={ownerToken} canStart={Boolean(state.playerId)} onStart={startGame} starting={starting} startError={startError} roundStartsAt={state.roundStartsAt} />
       ) : (
         <>
           {/* 1 Leaderboard */}
@@ -307,8 +363,9 @@ export default function Play() {
             </div>
             {state.queuePosition != null && <p className="dim">Masuk antrean #{state.queuePosition}{state.queueEtaMs ? ` · estimasi ${Math.ceil(state.queueEtaMs / 1000)} dtk` : ""}</p>}
             <small className="dim">Spectator text passes the backend profanity filter before it appears on /stage (PRD 8).</small>
-            <button className="btn btn--stop big sendbtn" onClick={send} disabled={attackActive || cooling || queueFull}>
-              {queueFull ? "Queue full" : attackActive ? (state.queuePosition ? `Queue #${state.queuePosition}` : "Attack in progress…") : cooling ? `Cooldown ${coolLeft}s` : "ATTACK"}
+            {mode !== "real" && <p className="err" role="status">{mode === "connecting" ? "Menghubungkan ke server…" : "Koneksi terputus. Menghubungkan ulang…"}</p>}
+            <button className="btn btn--stop big sendbtn" onClick={send} disabled={mode !== "real" || attackActive || cooling || queueFull}>
+              {mode !== "real" ? (mode === "connecting" ? "MENGHUBUNGKAN…" : "MENYAMBUNG ULANG…") : queueFull ? "Queue full" : attackActive ? (state.queuePosition ? `Queue #${state.queuePosition}` : "Attack in progress…") : cooling ? `Cooldown ${coolLeft}s` : "ATTACK"}
             </button>
             {cooling && <div className="cd"><i style={{ width: `${(coolLeft / QUEUE.COOLDOWN_S) * 100}%` }} /></div>}
             {(error || state.attackError) && <p className="err">{error || state.attackError}</p>}
@@ -440,6 +497,7 @@ function FinalBoard({ rank, myScore, standing, me }) {
       <p>
         Final score: <b className="score">{myScore}</b>
       </p>
+      <p className="dim">Mau main lagi? Tetap di halaman ini. Host akan membuka lobby baru dan skor ronde berikutnya mulai dari nol.</p>
       <a className="txlink" href="#" onClick={(e) => e.preventDefault()}>
         Your transaction on MonadScan (sent on a real run) ↗
       </a>
@@ -448,10 +506,18 @@ function FinalBoard({ rank, myScore, standing, me }) {
 }
 
 /* ===== ruang tunggu (fase LOBBY — game belum dibuka host) ===== */
-function WaitingRoom({ nick, playerCount, others }) {
+function WaitingRoom({ nick, playerCount, others, ownerToken, canStart, onStart, starting, startError, roundStartsAt }) {
   const room = roomFromUrl();
   const [qr, setQr] = useState(null); // { room, url } — codec QRCode async
   const [copied, setCopied] = useState("");
+  const [, sweep] = useState(0);
+
+  useEffect(() => {
+    if (!roundStartsAt || roundStartsAt <= Date.now()) return undefined;
+    const id = setInterval(() => sweep((n) => n + 1), 250);
+    return () => clearInterval(id);
+  }, [roundStartsAt]);
+  const msLeft = roundStartsAt ? Math.max(0, roundStartsAt - Date.now()) : null;
 
   useEffect(() => {
     if (!room) return undefined;
@@ -501,6 +567,19 @@ function WaitingRoom({ nick, playerCount, others }) {
           {qrUrl && <p className="dim wqrnote">Friends scan this QR — they land here, in this waiting room.</p>}
         </>
       )}
+      {ownerToken && (
+        <div className="wroom-owner">
+          <button
+            className="btn btn--primary big"
+            onClick={onStart}
+            disabled={starting || !canStart || !!msLeft}
+          >
+            {starting || msLeft ? "MEMULAI…" : canStart ? "MULAI PERMAINAN" : "BERGABUNG DULU…"}
+          </button>
+          <p className="dim">Khusus pembuat room. Setelah mulai, kedua ronde berjalan otomatis.</p>
+          {startError && <p className="err" role="alert">{startError}</p>}
+        </div>
+      )}
       <span className="badge badge--sim">
         {playerCount} PLAYER{playerCount === 1 ? "" : "S"} IN
       </span>
@@ -526,7 +605,10 @@ function WaitingRoom({ nick, playerCount, others }) {
           <Sprite name="mascotC" size={30} />
         </span>
       </span>
-      <p className="astatus dim blink-idle">WAITING FOR THE HOST…</p>
+      {msLeft !== null && <p className="wcountlabel dim small">ROUND 1 STARTS IN</p>}
+      {msLeft !== null
+        ? <p className="wcount t-score">{Math.max(1, Math.ceil(msLeft / 1000))}</p>
+        : <p className="astatus dim blink-idle">WAITING FOR THE HOST…</p>}
       <ul className="wroomhint dim">
         <li>
           <b>Round 1 RAW</b> — no guards. Catch the Cashier Agent completely off guard.

@@ -34,6 +34,7 @@ export interface VoteResult {
 
 export interface AttackRecord {
   attackId: string;
+  roomCode?: string;
   playerId: string;
   nickname: string;
   payload: AttackPayload;
@@ -62,10 +63,13 @@ export interface Player {
 export interface GameState {
   phase: Phase;
   tMsLeft: number;
+  gameStartedAt: number | null;
+  gameEndedAt: number | null;
+  gameElapsedMs: number;
   vaultOn: boolean;
-  manualAttacksEnabled: boolean;
   rehearsal: boolean;
   panicBlur: boolean;
+  roundStartsAt?: number | null;
 }
 
 export const PHASE_DURATIONS: Record<Phase, number> = {

@@ -17,8 +17,10 @@ export class Room {
   phase: Phase = 'LOBBY_OPEN';
   phaseStartedAt = Date.now();
   phaseDuration = PHASE_DURATIONS.LOBBY_OPEN;
+  gameStartedAt: number | null = null;
+  gameEndedAt: number | null = null;
+  roundStartsAt: number | null = null;
   vaultOn = false;
-  manualAttacksEnabled = config.manualAttacksEnabled;
   rehearsal = config.rehearsal;
   panicBlur = config.panicBlur;
   globalQueueEpoch = 0;
@@ -46,6 +48,28 @@ export class Room {
     this.phase = 'LOBBY_OPEN';
     this.phaseStartedAt = Date.now();
     this.phaseDuration = PHASE_DURATIONS.LOBBY_OPEN;
+    this.gameStartedAt = null;
+    this.gameEndedAt = null;
+    this.schedulePersist();
+  }
+
+  resetForNewRoom(): void {
+    this.players.clear();
+    this.nicknames.clear();
+    this.joinsByIp.clear();
+    this.queue.length = 0;
+    this.attacks.clear();
+    this.globalQueueEpoch++;
+    this.vaultOn = false;
+    this.phase = 'LOBBY_OPEN';
+    this.phaseStartedAt = Date.now();
+    this.phaseDuration = PHASE_DURATIONS.LOBBY_OPEN;
+    this.gameStartedAt = null;
+    this.gameEndedAt = null;
+    this.rehearsal = config.rehearsal;
+    this.panicBlur = config.panicBlur;
+    this.roundStartsAt = null;
+    this.attackCounter = 0;
     this.schedulePersist();
   }
 
@@ -76,6 +100,27 @@ export class Room {
   disconnect(playerId: string): void {
     const player = this.players.get(playerId);
     if (player) player.disconnectedAt = Date.now();
+  }
+
+  removePlayer(playerId: string): Player | undefined {
+    const player = this.players.get(playerId);
+    if (!player) return undefined;
+
+    this.players.delete(playerId);
+    this.nicknames.delete(player.nickname.toLowerCase());
+    const joins = this.joinsByIp.get(player.ip) ?? 0;
+    if (joins <= 1) this.joinsByIp.delete(player.ip);
+    else this.joinsByIp.set(player.ip, joins - 1);
+
+    for (let index = this.queue.length - 1; index >= 0; index--) {
+      const attack = this.queue[index]!;
+      if (attack.playerId !== playerId) continue;
+      this.queue.splice(index, 1);
+      this.attacks.delete(attack.attackId);
+    }
+    this.globalQueueEpoch++;
+    this.schedulePersist();
+    return player;
   }
 
   uniqueNickname(nickname: string): boolean {
@@ -113,8 +158,19 @@ export class Room {
   }
 
   setPhase(phase: Phase): void {
+    const now = Date.now();
+    if (phase === 'LOBBY_OPEN') {
+      this.gameStartedAt = null;
+      this.gameEndedAt = null;
+    } else if ((phase === 'ROUND_1_RAW' || phase === 'ROUND_2_SHIELD') && this.gameStartedAt === null) {
+      this.gameStartedAt = now;
+      this.gameEndedAt = null;
+    } else if (phase === 'GAME_OVER' && this.gameStartedAt !== null && this.gameEndedAt === null) {
+      this.gameEndedAt = now;
+    }
     this.phase = phase;
-    this.phaseStartedAt = Date.now();
+    this.roundStartsAt = null;
+    this.phaseStartedAt = now;
     this.phaseDuration = PHASE_DURATIONS[phase];
     if (phase === 'LOBBY_OPEN' || phase === 'ROUND_1_RAW') this.vaultOn = false;
     if (phase === 'ROUND_2_SHIELD') this.vaultOn = true;
@@ -122,14 +178,35 @@ export class Room {
     this.schedulePersist();
   }
 
+  startNextGame(): void {
+    if (this.phase !== 'GAME_OVER') throw new Error('A new game can only start after the current game is over');
+    if (this.queue.length || [...this.attacks.values()].some((attack) => attack.status !== 'RESOLVED')) {
+      throw new Error('Wait for all queued attacks to finish before starting a new game');
+    }
+    for (const player of this.players.values()) {
+      player.score = 0;
+      player.cooldownUntil = 0;
+      delete player.scoreOrderAt;
+      delete player.activeAttackId;
+    }
+    this.queue.length = 0;
+    this.attacks.clear();
+    this.globalQueueEpoch++;
+    this.setPhase('LOBBY_OPEN');
+  }
+
   gameState(): GameState {
+    const gameEnd = this.gameEndedAt ?? Date.now();
     return {
       phase: this.phase,
       tMsLeft: Math.max(0, this.phaseDuration - (Date.now() - this.phaseStartedAt)),
+      gameStartedAt: this.gameStartedAt,
+      gameEndedAt: this.gameEndedAt,
+      gameElapsedMs: this.gameStartedAt === null ? 0 : Math.max(0, gameEnd - this.gameStartedAt),
       vaultOn: this.vaultOn,
-      manualAttacksEnabled: this.manualAttacksEnabled,
       rehearsal: this.rehearsal,
       panicBlur: this.panicBlur,
+      roundStartsAt: this.roundStartsAt,
     };
   }
 

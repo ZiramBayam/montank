@@ -1,6 +1,6 @@
 # Montank — backend + frontend
 
-Full-stack demo Montank / Aegis-600. Backend menyediakan satu arena aktif, kode undangan lintas perangkat, room state machine, host controls, pemain/rejoin, antrean, guard P1–P3, Gemini/fallback, integrasi AegisVault Monad, dedup `monadLogs`, treasury telemetry, dan QR lobby. Frontend React menyediakan layar pemain, panggung, dan host.
+Full-stack demo Montank / Aegis-600. Backend menyediakan beberapa arena terpisah dengan kode undangan lintas perangkat, room state machine, host controls, pemain/rejoin, antrean, guard P1–P3, Gemini/fallback, integrasi AegisVault Monad, dedup `monadLogs`, treasury telemetry, dan QR lobby. Frontend React menyediakan layar pemain, panggung, dan host.
 
 ## Jalankan mode gladi
 
@@ -32,22 +32,23 @@ Default `REHEARSAL=true`: LLM diganti stub lokal, tidak ada transaksi RPC, dan `
 - `GET /`, `/play`, `/stage`, `/host` — layar frontend
 - `GET /health` — status layanan dan mode
 - `GET /api/lobby` — `BASE_URL`, tautan `/play`, jumlah pemain, dan fase
-- `POST /api/rooms` — mengembalikan kode undangan untuk arena aktif
+- `POST /api/rooms` — membuat arena terpisah dan memberi token host kepada pembuat; room lain tetap berjalan
+- `POST /api/rooms/:roomCode/start` — memulai permainan; memerlukan token pembuat room
 - `GET /api/rooms/:roomCode` — memvalidasi kode undangan dari perangkat peserta
 - `GET /qr.png` — QR dari `BASE_URL/play?room=<kode>`
 - WebSocket `/ws/play`, `/ws/stage`, `/ws/host?t=<HOST_TOKEN>` (alias kompatibilitas: `/play`, `/stage`, `/host`)
 
-Kode undangan yang sama dipakai seluruh peserta dan disimpan di `data/room-invite.json` agar tetap berlaku setelah backend restart. Backend saat ini menjalankan satu arena aktif; kode ini adalah tautan masuk, bukan pemisah beberapa room.
+Setiap room memiliki kode, token mulai milik pembuat, pemain, scoreboard, fase permainan, timer, dan antrean serangan sendiri. Pembuat masuk sebagai peserta biasa dan mendapat satu tombol tambahan untuk memulai permainan; tokennya tidak memberi akses ke kontrol host lainnya. Membuat room baru tidak mengubah room yang sedang berjalan; pemain dapat membuat room lain tanpa menunggu peserta room sebelumnya keluar. Daftar room disimpan di `data/room-invite.json`, sementara state tiap room disimpan terpisah di `data/rooms/`. Koneksi Monad dan kontrak vault tetap merupakan layanan bersama backend.
 
-Host tanpa token hanya menerima status dan tidak bisa mengirim perintah. Serangan dari kartu cepat bisa digunakan langsung; input prompt bebas perlu diaktifkan lewat tombol `Manual attacks` di panel host.
+Host tanpa token hanya menerima status dan tidak bisa mengirim perintah. Peserta dapat memakai kartu cepat atau mengirim prompt bebas hingga 1.000 karakter selama ronde aktif. Prompt bebas tidak bergantung pada pengaturan host; filter konten dan batas panjang tetap berlaku.
 
 ## Protokol singkat
 
 `/play` menerima `join {nickname}`, `rejoin {playerId}`, dan `attack {payload, manual?}`. Nickname mengikuti `^[a-zA-Z0-9_]{2,12}$`. Nama tabrakan diberi suffix. Batas awal: 40 pemain, 3 join/IP, 1 serangan aktif per pemain, antrean maksimum 12, cooldown 5 detik setelah hasil, dan prompt manual maksimum 1.000 karakter.
 
-`/host` menerima `host_cmd {cmd, ...}`. Perintah yang tersedia: `ROUND1`, `VAULT_ON`, `JUDGE_CLAIM_A`, `JUDGE_CLAIM_B`, `SIM_CROWD`, `SAMPLE_ATTACK`, `PANIC_BLUR`, `REFILL`, `REHEARSAL`, `MANUAL_ATTACKS`, dan `GOTO:<phase>`. `REFILL` hanya memberi pengingat; backend tidak mengirim dana untuk refill.
+`/host` menerima `host_cmd {cmd, ...}`. Host memulai permainan dengan `ROUND1`; lobby tidak mulai otomatis. Setelah dimulai, Round 1 (60 detik) dan Round 2 (120 detik) maju otomatis hingga podium. Host dan panggung menampilkan durasi total serta waktu mulai dan selesai. Perintah lain: `VAULT_ON`, `JUDGE_CLAIM_A`, `JUDGE_CLAIM_B`, `SIM_CROWD`, `SAMPLE_ATTACK`, `PANIC_BLUR`, `REFILL`, `REHEARSAL`, dan `GOTO:<phase>`. `REFILL` hanya memberi pengingat; backend tidak mengirim dana untuk refill.
 
-Panic Blur aktif/nonaktif dengan `PANIC_BLUR`. Teks manual terkunci kecuali operator menjalankan `MANUAL_ATTACKS` dengan `{ "enabled": true }`; filter konten tetap berlaku. Disarankan tidak mengaktifkan input manual sampai host dapat mengoperasikan blur pada UI panggung.
+Panic Blur aktif/nonaktif dengan `PANIC_BLUR`. Prompt bebas selalu tersedia selama ronde aktif. Filter konten tetap berlaku sebelum prompt ditampilkan pada `/stage`.
 
 ## Ledger klaim
 

@@ -12,7 +12,8 @@ export default function Stage() {
   const [lobbyInfo, setLobbyInfo] = useState(null);
   useEffect(() => {
     let active = true;
-    fetch("/api/lobby").then((response) => response.ok ? response.json() : null)
+    const room = new URLSearchParams(window.location.search).get("room");
+    fetch(`/api/lobby${room ? `?room=${encodeURIComponent(room)}` : ""}`).then((response) => response.ok ? response.json() : null)
       .then((data) => { if (active && data) setLobbyInfo(data); })
       .catch(() => {});
     return () => { active = false; };
@@ -73,7 +74,7 @@ export default function Stage() {
       {phase === PHASE.LOBBY && <Lobby state={state} lobbyInfo={lobbyInfo} />}
       {phase === PHASE.RAW && <RawRound state={state} />}
       {phase === PHASE.SHIELD && <Shield state={state} focus={focus} api={api} />}
-      {phase === PHASE.OVER && <Podium state={state} />}
+      {phase === PHASE.OVER && <Podium state={state} api={api} authorized={state.hostAuthorized} />}
       {state.hostAuthorized && <button className="hostchip" onClick={api.panic} title="Spacebar = Panic Blur (PRD 8)">
         {state.panic ? `PANIC ON → ${HONEST.SENSOR}` : "[SPACE] PANIC BLUR"}
       </button>}
@@ -84,6 +85,8 @@ export default function Stage() {
 /* ---------- Zona atas (PRD 7.2) ---------- */
 function TopBar({ state, leftS, mode }) {
   const s = leftS();
+  const elapsed = Math.floor((state.gameElapsedMs ?? 0) / 1000);
+  const gameClock = `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`;
   return (
     <header className="topbar card--flat">
       <span className="brand">
@@ -100,6 +103,10 @@ function TopBar({ state, leftS, mode }) {
           <span className="score t-big">{s}s</span>
         </span>
       )}
+      <span className="cell">
+        <span className="dim small">GAME TIME</span>
+        <span className="score t-big">{state.gameStartedAt ? gameClock : "—"}</span>
+      </span>
       <span className="cell">
         <span className="dim small">VAULT BALANCE</span>
         <b className="score t-big">
@@ -151,7 +158,7 @@ function Lobby({ state, lobbyInfo }) {
             Round 2 turns the <b className="num-ok">AegisVault</b> ON — get past all 3 guards!
           </li>
         </ul>
-        <p className="dim blink-idle">ATTACK TO SCORE — ROOM IS OPEN</p>
+        <p className="dim blink-idle">ROOM OPEN — WAITING FOR HOST TO START</p>
         <p className="dim">Open manually: <b>{lobbyInfo?.manualUrl || `${window.location.origin}/play`}</b></p>
       </div>
       <div className="board card">
@@ -371,7 +378,7 @@ function JuryButtons({ api, authorized }) {
 }
 
 /* ---------- Podium (PRD fase 4) ---------- */
-function Podium({ state }) {
+function Podium({ state, api, authorized }) {
   const rows = Object.entries(state.players)
     .map(([nick, p]) => ({ nick, score: p.score }))
     .sort((a, b) => b.score - a.score);
@@ -408,10 +415,28 @@ await worker.writeContract({
           <li><span className="dim">Median result latency</span><b className="num-ok">{median != null ? `${median}ms` : "—"}</b></li>
           <li><span className="dim">Funds held</span><b className="num-bad">{held} MON</b></li>
           <li><span className="dim">Full breach</span><b className="num-ok">{breaches}</b></li>
+          <li><span className="dim">Game duration</span><b className="num">{formatDuration(state.gameElapsedMs)}</b></li>
+          <li><span className="dim">Started at</span><b className="num">{formatClock(state.gameStartedAt)}</b></li>
+          <li><span className="dim">Finished at</span><b className="num">{formatClock(state.gameEndedAt)}</b></li>
           <li><span className="dim">Source</span><b className="dim">backend + Monad logs{state.virtual ? " · simulated" : " · live"}</b></li>
         </ul>
         <pre className="code card card--flat">{code}</pre>
+        {state.hostMessage && <p className="num-bad">{state.hostMessage}</p>}
+        {authorized ? (
+          <button className="btn btn--primary" onClick={api.host.newGame}>START NEXT GAME → LOBBY</button>
+        ) : (
+          <p className="dim">Game selesai. Tetap di halaman ini; host akan membuka lobby untuk ronde berikutnya.</p>
+        )}
       </section>
     </div>
   );
+}
+
+function formatDuration(ms = 0) {
+  const seconds = Math.floor(ms / 1000);
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function formatClock(timestamp) {
+  return timestamp ? new Date(timestamp).toLocaleString() : "—";
 }
