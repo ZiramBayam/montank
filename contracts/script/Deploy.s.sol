@@ -5,7 +5,7 @@ import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 import {AegisVault} from "../src/AegisVault.sol";
 
-/// @title Deploy AegisVault (docs/04-deploy-runbook.md).
+/// @title Deploy AegisVault (see README.md for setup and usage).
 /// @notice Semua parameter lewat env (fail-fast bila wajib tidak terisi):
 ///         WAJIB  : DEPLOYER_PRIVATE_KEY, GUARDIAN_1..3, WORKER_1, WORKER_2,
 ///                  GUARDIAN_MASK (7), EXPIRY_BLOCKS, WINDOW_BLOCKS,

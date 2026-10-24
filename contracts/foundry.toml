@@ -9,7 +9,7 @@ evm_version = "paris"
 optimizer = true
 optimizer_runs = 200
 
-# --- Fuzz & invariant (audit standard, lihat docs/06) ---
+# --- Fuzz & invariant checks ---
 [fuzz]
 runs = 256
 
