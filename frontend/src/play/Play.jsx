@@ -56,7 +56,7 @@ export default function Play() {
     }
   }, [state.attackError]);
   useEffect(() => {
-    if (state.cooldownUntil) setCoolUntil(state.cooldownUntil);
+    setCoolUntil(state.cooldownUntil ?? 0);
   }, [state.cooldownUntil]);
 
   // putus timer boot saat keluar dari /play
@@ -440,6 +440,7 @@ function FinalBoard({ rank, myScore, standing, me }) {
       <p>
         Final score: <b className="score">{myScore}</b>
       </p>
+      <p className="dim">Mau main lagi? Tetap di halaman ini. Host akan membuka lobby baru dan skor ronde berikutnya mulai dari nol.</p>
       <a className="txlink" href="#" onClick={(e) => e.preventDefault()}>
         Your transaction on MonadScan (sent on a real run) ↗
       </a>

@@ -122,6 +122,23 @@ export class Room {
     this.schedulePersist();
   }
 
+  startNextGame(): void {
+    if (this.phase !== 'GAME_OVER') throw new Error('A new game can only start after the current game is over');
+    if (this.queue.length || [...this.attacks.values()].some((attack) => attack.status !== 'RESOLVED')) {
+      throw new Error('Wait for all queued attacks to finish before starting a new game');
+    }
+    for (const player of this.players.values()) {
+      player.score = 0;
+      player.cooldownUntil = 0;
+      delete player.scoreOrderAt;
+      delete player.activeAttackId;
+    }
+    this.queue.length = 0;
+    this.attacks.clear();
+    this.globalQueueEpoch++;
+    this.setPhase('LOBBY_OPEN');
+  }
+
   gameState(): GameState {
     return {
       phase: this.phase,

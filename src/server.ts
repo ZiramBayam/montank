@@ -121,7 +121,7 @@ function sendScoreboards(): void {
       score: player?.score ?? 0,
     });
   }
-  broadcast('stage', 'scoreboard', { top: leaderboard() });
+  broadcast('stage', 'scoreboard', { top: sorted.map(({ nickname, score }) => ({ nickname, score })) });
 }
 
 function sendQueueUpdates(): void {
@@ -379,7 +379,11 @@ async function executeRawBreach(attack: AttackRecord, proposedRecipient: Address
 
 function enterActionResolved(actionId: string, status: number): void {
   const attack = attacksByAction.get(actionId.toLowerCase());
-  if (!attack || chain.isRegisteredAction(actionId)) return;
+  if (!attack) return;
+  if (chain.isRegisteredAction(actionId)) {
+    sendAttackResult(attack, 'GUARDIAN', status === 3 ? 'REGISTERED_PAYEE' : 'PAYOUT_FAILED', 0, ['Registered payee path completed without guardian scoring']);
+    return;
+  }
   const votes = votesByAction.get(actionId.toLowerCase()) ?? [];
   const vetoes = votes.filter((vote) => vote.decision === 'VETO').length;
   const clears = votes.filter((vote) => vote.decision === 'CLEAR').length;
@@ -424,6 +428,10 @@ chain.setHooks({
   onActionResolved(actionId, status, _amount, txHash) {
     const attack = attacksByAction.get(actionId.toLowerCase());
     if (attack) broadcast('stage', 'pipeline', { actionId, commitState: 'Finalized', txHash, measuredMs: Date.now() - attack.createdAt });
+    if (attack && chain.isRegisteredAction(actionId)) {
+      sendAttackResult(attack, 'GUARDIAN', 'REGISTERED_PAYEE', 0, ['Registered payee path completed without guardian scoring']);
+      return;
+    }
     enterActionResolved(actionId, status);
   },
   onPipeline(actionId, commitState, txHash) {
@@ -453,6 +461,7 @@ async function hostClaim(path: 'A' | 'B'): Promise<void> {
     if (path === 'A' || proposed.pathA) {
       broadcast('stage', 'pipeline', { actionId: proposed.actionId, commitState: 'Finalized', measuredMs: 0 });
       broadcast('host', 'host_notice', { message: 'Klaim Jalur A disimulasikan; transaksi tidak dikirim.' });
+      sendAttackResult(attack, 'GUARDIAN', 'REGISTERED_PAYEE', 0, ['Registered payee path completed without guardian scoring']);
     } else {
       await finalizeLocalAction(attack, proposed.actionId, await guardians.evaluate(attack, attack.victim, true));
     }
@@ -467,6 +476,30 @@ async function hostCommand(cmd: string, data: Record<string, unknown>): Promise<
     room.setPhase(phase);
   } else if (cmd === 'ROUND1') { rawBreachDone = false; latestRawBreach = null; room.setPhase('ROUND_1_RAW'); }
   else if (cmd === 'VAULT_ON') room.setPhase('ROUND_2_SHIELD');
+  else if (cmd === 'NEW_GAME') {
+    if (workerBusy) throw new Error('Wait for the current attack to finish before starting the next game');
+    if ([...attacksByAction.values()].some((attack) => attack.status !== 'RESOLVED')) {
+      throw new Error('Wait for pending actions to finish before starting the next game');
+    }
+    room.startNextGame();
+    rawBreachDone = false;
+    latestRawBreach = null;
+    spotlightCandidates = [];
+    vetoTotal = 0;
+    breachTotal = 0;
+    countedResults.clear();
+    resultLatenciesMs.length = 0;
+    attacksByAction.clear();
+    votesByAction.clear();
+    p3ByAttack.clear();
+    sendScoreboards();
+    sendQueueUpdates();
+    broadcast('stage', 'telemetry', telemetrySnapshot());
+    broadcast('all', 'game_reset', {
+      state: room.gameState(),
+      players: room.scoreboard().map(({ playerId, nickname, score }) => ({ playerId, nickname, score })),
+    });
+  }
   else if (cmd === 'JUDGE_CLAIM_A') await hostClaim('A');
   else if (cmd === 'JUDGE_CLAIM_B') await hostClaim('B');
   else if (cmd === 'SIM_CROWD') {
@@ -593,7 +626,7 @@ for (const channel of ['play', 'stage', 'host'] as const) {
     if (channel === 'play') push(client, 'state', room.gameState());
     else if (channel === 'stage') {
       push(client, 'state', room.gameState());
-      push(client, 'scoreboard', { top: leaderboard() });
+      push(client, 'scoreboard', { top: room.scoreboard().map(({ nickname, score }) => ({ nickname, score })) });
       push(client, 'player_joined', { count: room.players.size });
       push(client, 'treasury', currentTreasury);
       push(client, 'queue', { count: room.queue.length, max: config.queueMax });

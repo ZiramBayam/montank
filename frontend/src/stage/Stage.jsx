@@ -73,7 +73,7 @@ export default function Stage() {
       {phase === PHASE.LOBBY && <Lobby state={state} lobbyInfo={lobbyInfo} />}
       {phase === PHASE.RAW && <RawRound state={state} />}
       {phase === PHASE.SHIELD && <Shield state={state} focus={focus} api={api} />}
-      {phase === PHASE.OVER && <Podium state={state} />}
+      {phase === PHASE.OVER && <Podium state={state} api={api} authorized={state.hostAuthorized} />}
       {state.hostAuthorized && <button className="hostchip" onClick={api.panic} title="Spacebar = Panic Blur (PRD 8)">
         {state.panic ? `PANIC ON → ${HONEST.SENSOR}` : "[SPACE] PANIC BLUR"}
       </button>}
@@ -371,7 +371,7 @@ function JuryButtons({ api, authorized }) {
 }
 
 /* ---------- Podium (PRD fase 4) ---------- */
-function Podium({ state }) {
+function Podium({ state, api, authorized }) {
   const rows = Object.entries(state.players)
     .map(([nick, p]) => ({ nick, score: p.score }))
     .sort((a, b) => b.score - a.score);
@@ -411,6 +411,12 @@ await worker.writeContract({
           <li><span className="dim">Source</span><b className="dim">backend + Monad logs{state.virtual ? " · simulated" : " · live"}</b></li>
         </ul>
         <pre className="code card card--flat">{code}</pre>
+        {state.hostMessage && <p className="num-bad">{state.hostMessage}</p>}
+        {authorized ? (
+          <button className="btn btn--primary" onClick={api.host.newGame}>START NEXT GAME → LOBBY</button>
+        ) : (
+          <p className="dim">Game selesai. Tetap di halaman ini; host akan membuka lobby untuk ronde berikutnya.</p>
+        )}
       </section>
     </div>
   );

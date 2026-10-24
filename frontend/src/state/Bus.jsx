@@ -141,6 +141,25 @@ export function BusProvider({ children, role: appRole }) {
       try {
         const m = JSON.parse(ev.data);
         if (m.type === "state") push((prev) => ({ ...prev, ...mapServerState(m, prev) }));
+        else if (m.type === "game_reset") push((prev) => {
+          const base = initial();
+          const players = Object.fromEntries((m.players ?? []).map((player) => [player.nickname, { score: player.score ?? 0 }]));
+          return {
+            ...base,
+            ...mapServerState(m.state, prev),
+            playerId: prev.playerId,
+            nickname: prev.nickname,
+            hostAuthorized: prev.hostAuthorized,
+            cooldownUntil: 0,
+            lastAttackResult: null,
+            playerCount: m.players?.length ?? prev.playerCount ?? 0,
+            players,
+            bank: prev.bank,
+            lobbyInfo: prev.lobbyInfo,
+            txExplorerBaseUrl: prev.txExplorerBaseUrl,
+            telemetry: { totalAttacks: 0, vetoes: 0, breaches: 0, medianEndToEndMs: null },
+          };
+        });
         else if (m.type === "joined") {
           localStorage.setItem("pf_player_id", m.playerId);
           localStorage.setItem("pf_nick", m.nickname);
@@ -152,7 +171,7 @@ export function BusProvider({ children, role: appRole }) {
         }
         else if (m.type === "room_rejected") push((prev) => ({ ...prev, joinError: "ROOM_NOT_FOUND" }));
         else if (m.type === "scoreboard") push((prev) => ({ ...prev, players: mergePlayers(prev.players, m.top), myScore: m.score, myRank: m.rank }));
-        else if (m.type === "player_joined") push((prev) => ({ ...prev, playerCount: m.count }));
+        else if (m.type === "player_joined") push((prev) => ({ ...prev, playerCount: m.count, players: m.nickname ? { ...prev.players, [m.nickname]: prev.players[m.nickname] ?? { score: 0 } } : prev.players }));
         else if (m.type === "queue") push((prev) => ({ ...prev, queueWaiting: m.count ?? prev.queueWaiting }));
         else if (m.type === "queue_update" || m.type === "attack_ack") push((prev) => ({ ...prev, queuePosition: m.queuePos ?? prev.queuePosition, queueEtaMs: m.estMs ?? prev.queueEtaMs, activeAttackId: m.attackId ?? prev.activeAttackId }));
         else if (m.type === "killfeed") push((prev) => ({ ...prev, attacks: upsertAttack(prev.attacks, m.entry) }));
@@ -212,6 +231,7 @@ export function BusProvider({ children, role: appRole }) {
       panic: () => send({ type: "host_cmd", cmd: "PANIC_BLUR" }),
       host: {
         lobby: () => send({ type: "host_cmd", cmd: "GOTO:LOBBY_OPEN" }),
+        newGame: () => send({ type: "host_cmd", cmd: "NEW_GAME" }),
         startRaw: () => send({ type: "host_cmd", cmd: "ROUND1" }),
         vaultOn: () => send({ type: "host_cmd", cmd: "VAULT_ON" }),
         gameOver: () => send({ type: "host_cmd", cmd: "GOTO:GAME_OVER" }),

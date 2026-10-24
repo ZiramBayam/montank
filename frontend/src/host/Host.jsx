@@ -70,6 +70,11 @@ export default function Host() {
         <p className="dim">
           Order: LOBBY → RAW → VAULT → OVER. Round timers show on /stage.
         </p>
+        {state.phase === PHASE.OVER && (
+          <button className="btn btn--primary" onClick={() => act(api.host.newGame, "start next game")} disabled={readOnly}>
+            START NEXT GAME → LOBBY
+          </button>
+        )}
       </section>
 
       <section className="card hzone">
