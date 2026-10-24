@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.log
+data/
+claims.json
+devserver.log
+contracts/out/
+contracts/cache/

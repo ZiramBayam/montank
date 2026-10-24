@@ -1,0 +1,9 @@
+[
+  {
+    "claimId": "BOUNTY-PR-99",
+    "category": "bounty",
+    "recipient": "0x000000000000000000000000000000000000dEaD",
+    "amount": "0.1",
+    "status": "unpaid"
+  }
+]

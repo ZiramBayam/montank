@@ -1,0 +1,165 @@
+/* ===== Montank tokens — sumber: DESIGN.md v2 (PRD 7) ===== */
+:root {
+  --bg: #0d0d11;
+  --panel: #141420;
+  --panel2: #1e1e2e;
+  --ink: #000000;
+  --paper: #f5f3ee;
+  --paper-dim: rgba(245, 243, 238, 0.6);
+  --purple: #836ef9;
+  --purple-deep: #5b43d6;
+  --yellow: #ffd600;
+  --red: #ff3b30;
+  --red-deep: #8f1a14;
+  --green: #00e676;
+  --green-deep: #00b257;
+
+  --border-w: 3px;
+  --border: var(--border-w) solid #000;
+  --shadow: 6px 6px 0 0 #000;
+
+  --f-display: "Silkscreen", monospace;
+  --f-pixel: "Silkscreen", monospace; /* unifikasi 8-bit: was Pixelify Sans (bentuknya rounded) */
+  --f-score: "VT323", monospace;
+
+  --step-1: 120ms;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+@supports (height: 100dvh) {
+  html, body, #root { height: 100dvh; }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--paper);
+  font-family: var(--f-pixel);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+
+/* Sprite pixel: isi svg di-scale ke ukuran span */
+.sprite > svg { width: 100%; height: 100%; display: block; }
+.sprite--inline { vertical-align: middle; margin: 0 6px 0 0; }
+
+h1, h2, h3 { font-family: var(--f-display); text-transform: uppercase; line-height: 1.15; }
+h1 { font-size: clamp(2rem, 5.2vw, 4.2rem); }
+h2 { font-size: clamp(1.1rem, 2.6vw, 1.8rem); }
+
+.t-score, .t-num { font-family: var(--f-score); }
+.score { color: var(--yellow); font-family: var(--f-score); font-size: 1.4em; line-height: 1; }
+.num   { color: var(--paper); font-family: var(--f-score); font-size: 1.25em; line-height: 1; }
+.num-ok   { color: var(--green); }
+.num-bad  { color: var(--red); }
+.num-dim  { color: var(--paper-dim); }
+
+/* Kartu neobru: selalu berlatar panel supaya border hitam tampil */
+.card {
+  background: var(--panel);
+  border: var(--border);
+  box-shadow: var(--shadow);
+  border-radius: 0;
+}
+.card--flat { box-shadow: none; }
+.card--lift { background: var(--panel2); }
+
+.btn {
+  font-family: var(--f-display);
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  background: var(--panel);
+  color: var(--paper);
+  border: var(--border);
+  box-shadow: var(--shadow);
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+  min-height: 48px;
+  transition: transform var(--step-1) steps(2);
+}
+.btn:hover:not(:disabled) { background: var(--panel2); transform: translate(2px, 2px); box-shadow: 4px 4px 0 0 #000; }
+/* varian warna: hover merender warna tombol (conceape yang di-dessam) agar teks kontras selalu */
+.btn--primary:hover:not(:disabled) { background: var(--purple-deep); }
+.btn--go:hover:not(:disabled)     { background: var(--green-deep); }
+.btn--stop:hover:not(:disabled)   { background: var(--red-deep); }
+.btn--coin:hover:not(:disabled)   { background: var(--yellow); }
+.btn:active:not(:disabled) { transform: translate(6px, 6px); box-shadow: none; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; transform: translate(6px, 6px); }
+.btn:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+
+.btn--primary { background: var(--purple); color: #fff; }
+.btn--go    { background: var(--green);  color: #000; }
+.btn--stop  { background: var(--red);    color: #fff; }
+.btn--coin  { background: var(--yellow); color: #000; }
+
+/* mobile: kill delay 300ms + no text select saat rapat menekan tombol */
+button, .ccard { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+
+.dim { color: var(--paper-dim); }
+.badge {
+  font-family: var(--f-score);
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  border: var(--border);
+  background: var(--bg);
+  color: var(--paper-dim);
+  white-space: nowrap;
+}
+.badge--sim  { color: var(--yellow); }
+.badge--warn { color: var(--red); }
+
+/* Dither header stage (motif identitas, hanya 2 tempat) */
+.dither {
+  background-image: repeating-conic-gradient(rgba(245, 243, 238, 0.1) 0 25%, transparent 0 50%);
+  background-size: 4px 4px;
+}
+
+/* Motion bertingkat 8-bit */
+@keyframes step-blink { 50% { opacity: 0.15; } }
+@keyframes step-rise  { 0% { transform: translateY(14px); } 100% { transform: translateY(0); } }
+@keyframes coin-pop   { 0% { transform: translateY(0) scale(0.4); } 60% { transform: translateY(-26px) scale(1.25); } 100% { transform: translateY(-70px) scale(1); opacity: 0; } }
+@keyframes flash-red  { 0%, 33%, 100% { background: var(--red-deep); } 33.3% { background: var(--red); } 66.6% { background: var(--red); } }
+
+/* Idle anim 8-bit (semua steps tegas, tanpa easing halus) */
+@keyframes idle-bobs    { 0%, 49.9% { transform: translateY(0); } 50%, 100% { transform: translateY(1px); } }
+@keyframes blink-closed { 0%, 91% { opacity: 0; } 92%, 96% { opacity: 1; } 97%, 100% { opacity: 0; } }
+@keyframes led-off      { 0%, 78% { opacity: 0; } 79%, 94% { opacity: 1; } 95%, 100% { opacity: 0; } }
+@keyframes mini-pulse   { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+@keyframes breathe-closed { 0%, 41% { opacity: 0; } 42%, 100% { opacity: 1; } }
+
+.idle-bob { animation: idle-bobs 1.3s infinite; }
+.flick { animation: blink-closed 4.6s infinite; }
+.bff   { animation: breathe-closed 2.8s infinite; }
+
+.blink-idle { animation: step-blink 1s steps(2, jump-none) infinite; }
+.slide-in-8 { animation: step-rise var(--step-1) steps(3, jump-end) both; }
+.coin-pop   { animation: coin-pop 700ms steps(6, jump-end) both; }
+.flash-red  { animation: flash-red 450ms steps(3, jump-none); }
+
+@media (prefers-reduced-motion: reduce) {
+  .blink-idle, .slide-in-8, .coin-pop, .flash-red,
+  .idle-bob, .flick, .gseat .sprite, .vled, .gheart { animation: none !important; }
+  .mkover.flick, .mkover.bff { opacity: 0 !important; }
+}
+
+/* Hati penjaga */
+.heart-fx { position: relative; }
+.heart-fx.is-veto::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: var(--panel);
+  animation: heart-crack 500ms steps(4, jump-end) both;
+}
+@keyframes heart-crack { 0%, 49% { opacity: 1; } 50% { opacity: 0; } 75% { opacity: 1; } 100% { opacity: 0; } }
+
+/* Cooldown bar 8-bit */
+.cd { height: 14px; border: var(--border); background: var(--bg); }
+.cd > i { display: block; height: 100%; background: var(--red); transition: width 1s steps(20, jump-none); }
+
+::selection { background: var(--yellow); color: #000; }

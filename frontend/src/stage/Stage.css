@@ -1,0 +1,236 @@
+/* ===== /stage — bento 4 zona (PRD 7.2) ===== */
+.stage {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "top" "body";
+  gap: 12px;
+  padding: 14px;
+  background-image: repeating-conic-gradient(rgba(245, 243, 238, 0.08) 0 25%, transparent 0 50%);
+  background-size: 4px 4px;
+}
+.stage > .zone, .stage > .main-y {
+  min-height: 0;
+}
+.stage { position: relative; }
+
+/* chip panic (indikator hotkey Spacebar) */
+.hostchip {
+  position: fixed;
+  bottom: calc(12px + env(safe-area-inset-bottom)); left: 12px;
+  z-index: 40;
+  font-family: var(--f-score);
+  background: rgba(0, 0, 0, 0.7);
+  border: var(--border);
+  color: var(--paper-dim);
+  padding: 10px 16px;
+  cursor: pointer;
+  user-select: none; -webkit-user-select: none;
+}
+.hostchip:hover { color: var(--paper); }
+
+/* ---------- zona atas ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border: var(--border);
+  background: var(--panel);
+  padding: 10px 16px;
+  box-shadow: var(--shadow);
+  flex-wrap: wrap;
+}
+.topbar .brand {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--f-display); font-size: 1rem;
+  color: var(--purple);
+}
+.topbar .cell { display: inline-flex; flex-direction: column; line-height: 1.2; }
+.small { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; font-family: var(--f-display); }
+.t-big { font-size: 1.9rem; }
+.t-huge { font-size: 4.2rem; line-height: 1.1; display: block; }
+
+.banner {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px;
+  border: var(--border);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-display);
+  font-size: 0.72rem;
+}
+
+/* ---------- Lobby ---------- */
+.zone { padding: 4px 2px; }
+.lobby {
+  display: grid;
+  grid-template-columns: 380px 1fr 380px;
+  gap: 20px;
+  align-items: start;
+  height: 100%;
+}
+.lobby .qr {
+  width: 100%;
+  image-rendering: pixelated;
+}
+.lobbyinfo h1 { color: var(--yellow); margin: 0 0 18px; }
+.rules { line-height: 2; margin: 0 0 18px; }
+.rules .num-ok { font-size: 1.1em; }
+.lobby .board { max-height: 60vh; overflow: hidden; }
+
+.rows { display: flex; flex-direction: column; gap: 4px; }
+.rows.scroll { overflow-y: auto; max-height: 46vh; }
+.row, .krow {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.6);
+  background: var(--panel);
+  font-size: 0.92rem;
+}
+.krow { font-size: 0.8rem; }
+.krow .nick, .row .rank { min-width: 26px; }
+.krow .score { margin-left: auto; }
+.krow .nick, .row .num { flex: 0 0 auto; }
+.krow .ktx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Ronde 1 JEBOL ---------- */
+.rawbreach {
+  height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px;
+  background: var(--red-deep, #8f1a14);
+  border: var(--border);
+  text-align: center;
+  padding: 24px;
+}
+.rawbreach h1.jebol {
+  color: #fff;
+  background: var(--red);
+  border: var(--border);
+  box-shadow: var(--shadow);
+  padding: 16px 40px;
+  text-shadow: 4px 4px 0 #000;
+}
+.rawbreach .drain { font-size: 1.4rem; color: var(--paper); }
+.rawbreach .hint, .rawbreach .dim { color: var(--paper); opacity: 0.8; }
+
+/* ---------- main grid Ronde 2 ---------- */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 14px;
+  min-height: 0;
+}
+.spotlight { padding: 14px 16px; overflow: hidden; }
+.spot h2 { color: var(--purple); }
+.spotup { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.spotup .who { font-family: var(--f-pixel); color: var(--yellow); }
+
+/* mascot banner: bob + kedip (idle anim) */
+.msprite { position: relative; display: inline-flex; }
+.spotup .score { margin-left: auto; font-size: 2rem; }
+.prompt {
+  font-size: 1.35rem;
+  background: var(--bg);
+  border: var(--border);
+  padding: 12px 14px;
+  margin: 0 0 12px;
+}
+.past { color: var(--paper-dim); font-family: var(--f-score); font-size: 1.15rem; }
+
+/* kartu penjaga */
+.guards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.gcard {
+  padding: 10px;
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  font-size: 0.82rem; line-height: 1.35;
+}
+.gcard b { font-family: var(--f-display); font-size: 0.7rem; text-transform: uppercase; }
+.gcard.clear { border-color: var(--green); }
+.gcard.veto { border-color: var(--red); }
+.gcard .num { font-size: 1.2rem; }
+
+/* kolom kanan */
+.side { display: grid; grid-template-rows: auto auto 1fr; gap: 10px; min-height: 0; }
+.board { padding: 10px 12px; }
+.board h2 { font-size: 0.9rem; color: var(--purple); margin: 0 0 8px; }
+.board .row { padding: 4px 8px; }
+.queuep {
+  padding: 8px 12px;
+  display: flex; gap: 8px; align-items: center;
+  font-family: var(--f-score); font-size: 1.05rem;
+}
+.kill { padding: 10px 12px; display: flex; flex-direction: column; min-height: 0; }
+.kill .rows { flex: 1; }
+
+/* ---------- telemetri bawah ---------- */
+.telemetry {
+  display: flex; align-items: center; gap: 22px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+}
+.tl { display: flex; gap: 14px; align-items: center; font-family: var(--f-display); font-size: 0.8rem; }
+.step .num { font-size: 1.4rem; margin-left: 8px; vertical-align: middle; }
+.step.on b { color: var(--green); }
+.step.opt b { color: var(--paper-dim); }
+.step .arrow { margin-left: 14px; font-style: normal; color: var(--paper-dim); }
+.txlink {
+  display: inline-flex; gap: 6px; align-items: center;
+  color: var(--yellow); font-family: var(--f-score); font-size: 1.2rem;
+}
+.jury { font-family: var(--f-display); font-size: 0.7rem; text-transform: uppercase; }
+.buttons { display: flex; gap: 12px; margin-left: auto; }
+.buttons .btn { font-size: 0.72rem; padding: 8px 14px; min-height: 44px; box-shadow: 4px 4px 0 0 #000; }
+
+/* ---------- Podium ---------- */
+.podium {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+  height: 100%;
+}
+.podcard { padding: 20px; }
+.podrow { display: flex; align-items: flex-end; gap: 18px; margin-top: 22px; }
+.ph {
+  flex: 1; display: flex; flex-direction: column; gap: 6px;
+  border: var(--border); box-shadow: var(--shadow);
+  padding: 16px 12px 0; font-family: var(--f-display);
+}
+.ph b { font-size: 0.86rem; color: var(--yellow); }
+.ph .score { font-size: 2.4rem; }
+.ph0 { background: var(--panel2); height: 210px; }
+.ph1 { background: var(--panel); height: 280px; border-color: var(--yellow); }
+.ph2 { background: var(--panel); height: 170px; border-color: var(--purple); }
+
+.tele { padding: 18px 20px; overflow: auto; }
+.tgrid {
+  list-style: none; padding: 0; display: grid;
+  grid-template-columns: repeat(3, 1fr); gap: 10px 18px; margin: 14px 0;
+}
+.tgrid li {
+  display: flex; flex-direction: column; gap: 2px;
+  border: 2px solid rgba(0, 0, 0, 0.6); padding: 8px 10px; background: var(--bg);
+}
+.tgrid .num { font-size: 1.7rem; }
+.code {
+  font-family: var(--f-score); font-size: 1rem; line-height: 1.45;
+  padding: 12px; margin: 0; white-space: pre-wrap; color: var(--paper-dim);
+  background: var(--bg);
+}
+
+/* layar TV: telepon hosts layar ini → penutup penuh CSS murni */
+@media (max-width: 700px) {
+  .stage { padding: 10px; }
+  .stage::after {
+    content: "STAGE SCREEN — meant for the LED TV / jury display. Open /play or /host on your phone.";
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: var(--bg);
+    color: var(--yellow);
+    font-family: var(--f-pixel);
+    font-size: 1rem;
+    line-height: 1.7;
+    text-align: center;
+    padding: 16vh 24px 0;
+  }
+}
