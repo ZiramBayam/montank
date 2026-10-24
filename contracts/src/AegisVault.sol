@@ -73,9 +73,7 @@ contract AegisVault is ReentrancyGuard {
     uint64 public immutable expiryBlocks;
     /// @dev jendela kumulatif Jalur A (reset-on-expiry per payee)
     uint64 public immutable windowBlocks;
-    /// @dev 0b001..0b111. docs/01 B2: P0 = 0b001, naik ke 0b111 saat P1 TANPA
-    /// redeploy => mask disimpan di storage, diubah lewat setGuardianMask().
-    /// Mask disalin ke setiap proposal pending; perubahan berlaku untuk proposal baru.
+    /// @dev 0b001..0b111. Mask hanya boleh ditambah; proposal menyimpan snapshot-nya.
     uint8 public guardianMask;
     /// @dev Jalur B claim-bound; immutable supaya mode keamanan tidak bisa dimatikan.
     bool public immutable claimMode;
@@ -124,12 +122,17 @@ contract AegisVault is ReentrancyGuard {
         require(guardians_[0] != guardians_[1], "DUP_GUARDIAN");
         require(guardians_[1] != guardians_[2], "DUP_GUARDIAN");
         require(guardians_[0] != guardians_[2], "DUP_GUARDIAN");
+        require(guardians_[0] != msg.sender, "ROLE_CONFLICT");
+        require(guardians_[1] != msg.sender, "ROLE_CONFLICT");
+        require(guardians_[2] != msg.sender, "ROLE_CONFLICT");
+
         guardianIndex[guardians_[0]] = 1;
         guardianIndex[guardians_[1]] = 2;
         guardianIndex[guardians_[2]] = 3;
 
         for (uint256 i = 0; i < workers_.length; ++i) {
             require(workers_[i] != address(0), "ZERO_WORKER");
+            require(workers_[i] != msg.sender && guardianIndex[workers_[i]] == 0, "ROLE_CONFLICT");
             isAgentWorker[workers_[i]] = true;
         }
 
@@ -244,7 +247,7 @@ contract AegisVault is ReentrancyGuard {
         }
     }
 
-    /// @notice HANYA MENCATAT, idempotent. Hanya proposal PENDING dan penjaga dalam
+    /// @notice HANYA MENCATAT, idempotent. Hanya proposal PENDING sebelum deadline dan penjaga dalam
     ///         snapshot mask-nya yang boleh mengisi slot; suara pertama final.
     ///         Tiga penjaga mengirim pada blok yang sama: tiga slot berbeda, tidak saling revert.
     function submitDecision(bytes32 actionId, bool isVeto, uint8 reasonCode) external {
@@ -253,7 +256,8 @@ contract AegisVault is ReentrancyGuard {
 
         // Votes bind to an already-recorded action and to the guardian set that
         // was active when it was proposed. No pre-votes or retroactive approvals.
-        if (actions[actionId].status != ActionStatus.PENDING) return;
+        ProposedAction storage a = actions[actionId];
+        if (a.status != ActionStatus.PENDING || block.number >= a.expireBlock) return;
         uint8 mask = actionGuardianMask[actionId];
         if (mask & (uint8(1) << (gid - 1)) == 0) return;
 
@@ -418,16 +422,16 @@ contract AegisVault is ReentrancyGuard {
     /// @notice Rotasi worker EOA saat demo (worker utama biasanya cukup di constructor).
     function setWorker(address workerAddr, bool active) external onlyOwner {
         require(workerAddr != address(0), "ZERO_WORKER");
+        if (active) require(workerAddr != owner && guardianIndex[workerAddr] == 0, "ROLE_CONFLICT");
 
         isAgentWorker[workerAddr] = active;
         emit WorkerSet(workerAddr, active);
     }
 
-    /// @notice Governance mask (docs/01 B2): demo P0 berjalan 1 penjaga (0b001);
-    ///         saat P1 (P2+P3 aktif) owner membesarkan ke 0b111 TANPA redeploy.
-    ///         Hanya menerima 1..0b111; perubahan hanya berlaku untuk proposal baru.
+    /// @notice Quorum hanya bisa diperketat; perubahan berlaku untuk proposal baru.
     function setGuardianMask(uint8 newMask) external onlyOwner {
         require(newMask != 0 && newMask <= 0x7, "BAD_MASK"); // 0x7 = 0b111
+        require((newMask & guardianMask) == guardianMask, "MASK_CANNOT_DECREASE");
 
         emit GuardianMaskChanged(guardianMask, newMask);
         guardianMask = newMask;
