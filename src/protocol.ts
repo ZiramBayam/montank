@@ -69,6 +69,7 @@ export interface GameState {
   vaultOn: boolean;
   rehearsal: boolean;
   panicBlur: boolean;
+  roundStartsAt?: number | null;
 }
 
 export const PHASE_DURATIONS: Record<Phase, number> = {
