@@ -262,6 +262,7 @@ export default function Play() {
           <b>{nick}</b>
         </span>
         <span className="me-stats">
+          <PhaseTimer endsAt={state.phaseEndsAt} phase={state.phase} />
           <span className="score">{myScore}</span>
           <span className="dim">#{rank > 0 ? rank : "-"}</span>
           <button className="btn btn--go phead-leave" type="button" onClick={leaveRoom} disabled={leaving}>
@@ -377,6 +378,22 @@ export default function Play() {
 }
 
 /* ===== arena ===== */
+/* Timer mundur sisa fase round (server-sourced tMsLeft via phaseEndsAt) */
+const ROUND_PHASES = new Set(["ROUND_1_RAW", "ROUND_2_SHIELD"]);
+function PhaseTimer({ endsAt, phase }) {
+  const [, sweep] = useState(0);
+  const live = endsAt != null && ROUND_PHASES.has(phase);
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => sweep((n) => n + 1), 250);
+    return () => clearInterval(id);
+  }, [live, endsAt]);
+  if (!live) return null;
+  const ms = Math.max(0, endsAt - Date.now());
+  if (ms <= 0) return null;
+  return <b className={`ptimer ${ms < 10_000 ? "ptimer--hot" : ""}`}>{Math.ceil(ms / 1000)}s</b>;
+}
+
 function Arena({ rawPhase, flight, now }) {
   const el = flight ? now - flight.startedAt : 0;
   const hits = flight ? flight.guards.map((_, i) => BOLT_MS + i * GAP_MS) : [];
