@@ -188,6 +188,7 @@ export default function Play() {
   const coolLeft = cooling ? Math.ceil((coolUntil - now) / 1000) : QUEUE.COOLDOWN_S;
   const queueFull = state.queueWaiting >= QUEUE.MAX;
   const attackActive = inFlight || Boolean(state.activeAttackId);
+  const transactionUrl = state.attacks.find((attack) => attack.txUrl)?.txUrl ?? state.breachRaw?.txUrl ?? null;
 
   const send = () => {
     const text = draft.trim();
@@ -272,7 +273,7 @@ export default function Play() {
       {leaveError && <p className="err center" role="alert">{leaveError}</p>}
 
       {over ? (
-        <FinalBoard rank={rank} myScore={myScore} standing={standing} me={nick} />
+        <FinalBoard rank={rank} myScore={myScore} standing={standing} me={nick} txUrl={transactionUrl} rehearsal={state.virtual} />
       ) : lobby ? (
         <WaitingRoom nick={nick} playerCount={playerCount} others={standing} ownerToken={ownerToken} canStart={Boolean(state.playerId)} onStart={startGame} starting={starting} startError={startError} roundStartsAt={state.roundStartsAt} />
       ) : (
@@ -486,7 +487,7 @@ function StatusLine({ stage, outcome }) {
   return <p className="astatus dim blink-idle">ATTACK TO SCORE</p>;
 }
 
-function FinalBoard({ rank, myScore, standing, me }) {
+function FinalBoard({ rank, myScore, standing, me, txUrl, rehearsal }) {
   const found = standing.some((r) => r.n === me) ? rank : 0;
   return (
     <section className="card final">
@@ -498,9 +499,15 @@ function FinalBoard({ rank, myScore, standing, me }) {
         Final score: <b className="score">{myScore}</b>
       </p>
       <p className="dim">Mau main lagi? Tetap di halaman ini. Host akan membuka lobby baru dan skor ronde berikutnya mulai dari nol.</p>
-      <a className="txlink" href="#" onClick={(e) => e.preventDefault()}>
-        Your transaction on MonadScan (sent on a real run) ↗
-      </a>
+      {txUrl ? (
+        <a className="txlink" href={txUrl} target="_blank" rel="noreferrer">
+          View transaction on MonadScan ↗
+        </a>
+      ) : (
+        <p className="dim" role="status">
+          {rehearsal ? "Mode rehearsal: tidak ada transaksi on-chain yang dikirim." : "Tidak ada transaksi on-chain untuk sesi ini."}
+        </p>
+      )}
     </section>
   );
 }

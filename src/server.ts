@@ -149,11 +149,18 @@ function push(client: Client, type: string, payload: object = {}): void {
 
 function broadcast(arena: ArenaContext, channel: 'play' | 'stage' | 'host' | 'all', type: string, payload: object = {}): void {
   let enriched = payload;
+  let relatedAttack: AttackRecord | undefined;
   if ((type === 'pipeline' || type === 'guardian_decision') && 'actionId' in payload && typeof payload.actionId === 'string') {
-    const attack = arena.attacksByAction.get(payload.actionId.toLowerCase());
-    if (attack) enriched = { ...payload, attackId: attack.attackId };
+    relatedAttack = arena.attacksByAction.get(payload.actionId.toLowerCase()) ?? arena.room.attacks.get(payload.actionId);
+    if (relatedAttack) enriched = { ...payload, attackId: relatedAttack.attackId };
   }
-  for (const client of clients) if (client.roomCode === arena.roomCode && (channel === 'all' || client.channel === channel)) push(client, type, enriched);
+  for (const client of clients) {
+    if (client.roomCode !== arena.roomCode) continue;
+    if (channel === 'all' || client.channel === channel) push(client, type, enriched);
+    else if (channel === 'stage' && type === 'pipeline' && relatedAttack && client.channel === 'play' && client.playerId === relatedAttack.playerId) {
+      push(client, type, enriched);
+    }
+  }
 }
 
 function broadcastState(arena: ArenaContext, force = false): void {
