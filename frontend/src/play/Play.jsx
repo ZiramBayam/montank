@@ -3,6 +3,7 @@ import { useBus } from "../state/RoomCtx.js";
 import { PHASE } from "../state/phases.js";
 import { ROWS, composeAttack, TIERS, QUEUE, HONEST } from "../data/deck.js";
 import Sprite from "../components/Sprite.jsx";
+import QRCode from "qrcode";
 import { play, unlockAudio, probeFiles } from "../state/sfx.js";
 import { roomFromUrl } from "../state/room.js";
 import "./Play.css";
@@ -448,6 +449,29 @@ function FinalBoard({ rank, myScore, standing, me }) {
 /* ===== ruang tunggu (fase LOBBY — game belum dibuka host) ===== */
 function WaitingRoom({ nick, playerCount, others }) {
   const room = roomFromUrl();
+  const [qr, setQr] = useState(null); // { room, url } — codec QRCode async
+  const [copied, setCopied] = useState("");
+
+  useEffect(() => {
+    if (!room) return undefined;
+    let dead = false;
+    QRCode.toDataURL(`${window.location.origin}/play?room=${room}`, { width: 320, margin: 2 })
+      .then((url) => {
+        if (!dead) setQr({ room, url });
+      })
+      .catch(() => {});
+    return () => {
+      dead = true;
+    };
+  }, [room]);
+
+  const copyText = (text, msg) => {
+    navigator.clipboard?.writeText(text);
+    setCopied(msg);
+    setTimeout(() => setCopied(""), 1200);
+  };
+  const qrUrl = qr && qr.room === room ? qr.url : null;
+
   return (
     <section className="wroom card slide-in-8" aria-live="polite">
       <h1>WAITING ROOM</h1>
@@ -455,15 +479,26 @@ function WaitingRoom({ nick, playerCount, others }) {
         You're in, <b className="gold">{nick}</b>. The raid opens when the host starts Round 1.
       </p>
       {room && (
-        <div className="wroomrow">
-          <b className="wcode t-score">{room}</b>
-          <button
-            className="btn"
-            onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/play?room=${room}`)}
-          >
-            COPY INVITE LINK
-          </button>
-        </div>
+        <>
+          <div className="wroomrow">
+            <b
+              className="wcode t-score"
+              title="Tap to copy room code"
+              onClick={() => copyText(room, "ROOM CODE COPIED!")}
+            >
+              {room}
+            </b>
+            <button
+              className="btn"
+              onClick={() => copyText(`${window.location.origin}/play?room=${room}`, "INVITE LINK COPIED!")}
+            >
+              COPY INVITE LINK
+            </button>
+          </div>
+          {copied && <p className="wcopied">{copied}</p>}
+          {qrUrl && <img className="wqr" src={qrUrl} alt={`QR to join room ${room}`} />}
+          {qrUrl && <p className="dim wqrnote">Friends scan this QR — they land here, in this waiting room.</p>}
+        </>
       )}
       <span className="badge badge--sim">
         {playerCount} PLAYER{playerCount === 1 ? "" : "S"} IN

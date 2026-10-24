@@ -252,7 +252,19 @@
 }
 .wroom h1 { color: var(--yellow); font-size: 1.5rem; margin: 0; }
 .wroomrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
-.wroom .wcode { font-size: 2rem; letter-spacing: 0.1em; line-height: 1; }
+.wroom .wcode { font-size: 2rem; letter-spacing: 0.1em; line-height: 1; cursor: pointer; }
+.wroom .wcode:active { transform: translateY(2px); }
+.wcopied { margin: 0; color: var(--green); font-family: var(--f-score); font-size: 0.95rem; }
+.wqr {
+  width: 184px;
+  height: auto;
+  margin: 4px auto 0;
+  background: var(--paper);
+  padding: 8px;
+  border: var(--border);
+  image-rendering: pixelated;
+}
+.wqrnote { font-size: 0.8rem; margin: 2px 0 0; }
 .wrmasc { position: relative; display: inline-flex; margin-top: 4px; }
 .wlist { width: 100%; display: flex; flex-direction: column; }
 .wlrow {
