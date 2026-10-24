@@ -55,6 +55,7 @@ export const config = {
   blockedAddresses: new Set((process.env.BLOCKED_ADDRESSES ?? '').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean)),
   demoRecipient: (process.env.DEMO_RECIPIENT ?? '') as Address,
   demoAmount: process.env.DEMO_AMOUNT ?? '0.1',
+  vendorRecipient: (process.env.VENDOR_RECIPIENT ?? '') as Address,
   rawDemoRecipient: (process.env.RAW_DEMO_RECIPIENT ?? '') as Address,
   rawDemoAmount: process.env.RAW_DEMO_AMOUNT ?? '0.1',
 } as const;

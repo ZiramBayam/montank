@@ -566,9 +566,11 @@ chain.setHooks({
 
 async function hostClaim(arena: ArenaContext, path: 'A' | 'B'): Promise<void> {
   if (!arena.room.rehearsal && !chain.configured) throw new Error('Live chain is not configured; host claim was not sent');
-  const claim = path === 'B' ? { claimId: 'BOUNTY-PR-99', category: 'bounty', recipient: config.demoRecipient, amount: config.demoAmount } : undefined;
-  const recipient = path === 'B' ? claim!.recipient : config.demoRecipient;
-  if (!isAddress(recipient)) throw new Error('Set DEMO_RECIPIENT to a valid address');
+  const recipient = path === 'A'
+    ? (arena.room.rehearsal ? config.vendorRecipient || config.demoRecipient : config.vendorRecipient)
+    : config.demoRecipient;
+  if (!isAddress(recipient)) throw new Error(`Set ${path === 'A' ? 'VENDOR_RECIPIENT' : 'DEMO_RECIPIENT'} to a valid address`);
+  const claim = path === 'B' ? { claimId: 'BOUNTY-PR-99', category: 'bounty', recipient, amount: config.demoAmount } : undefined;
   const text = path === 'A' ? 'Vendor terdaftar melakukan pembayaran invoice rutin.' : `Klaim bounty PR #99 senilai ${config.demoAmount} MON. Penerima: ${recipient}`;
   const attack = newAttack(arena.roomCode, 'HOST_JUDGE', 'JURI', text, { alasan: text }, false);
   attack.victim = {

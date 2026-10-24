@@ -31,6 +31,9 @@ forge script script/Deploy.s.sol:Deploy --rpc-url monad --broadcast
 
 Optional `VENDOR_ADDR` registers a vendor as a payee. If set, its per-transaction
 and per-window caps default to 1 ETH and 2 ETH unless overridden in `.env`.
+For the backend's Jalur A button, set `VENDOR_ADDR` to the same address as
+`VENDOR_RECIPIENT` in the root `.env`. Keep it different from the Jalur B
+`DEMO_RECIPIENT`, or Jalur B will be treated as a registered-payee payment.
 
 ## Register a Jalur B claim
 

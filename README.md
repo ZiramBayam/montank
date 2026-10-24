@@ -66,7 +66,7 @@ Setelah deployment, konfigurasi alamat kontrak, 1+ Worker, tiga Guardian, Execut
 
 Backend mengharapkan ABI/event yang disediakan kontrak: `proposeAction`, `submitDecision`, `executeAction`, `payees`, `claims`, `actions`, `ActionProposed`, `Layer0Rejected`, `ClaimRejected`, `GuardianDecision`, dan `ActionResolved`. Alamat yang sudah dideploy harus diisi manual; backend tidak men-deploy kontrak secara otomatis.
 
-`RAW_DEMO_RECIPIENT` wajib diisi dengan alamat tim/testnet sebelum ronde tanpa Vault dapat mengirim transaksi; backend tidak pernah memakai alamat hasil LLM sebagai tujuan transfer langsung. Transfer langsung dibatasi maksimum 5 MON dan memakai `RAW_DEMO_AMOUNT`. `DEMO_RECIPIENT`/`DEMO_AMOUNT` dipakai tombol klaim juri.
+`RAW_DEMO_RECIPIENT` opsional untuk ronde tanpa Vault; jika diisi, gunakan alamat testnet yang dikendalikan tim karena worker mengirim transfer langsung (maksimum 5 MON) sebesar `RAW_DEMO_AMOUNT`. `DEMO_RECIPIENT`/`DEMO_AMOUNT` dipakai klaim Jalur B dan harus cocok dengan `claims.json`. `VENDOR_RECIPIENT` dipakai klaim Jalur A dan harus sama dengan `VENDOR_ADDR` di `contracts/.env`. Gunakan alamat berbeda untuk Jalur A dan Jalur B agar klaim B tetap melewati guardian.
 
 `GUARDIAN_MASK=1` menjalankan konfigurasi P0 satu penjaga (P1 deterministik, guardian EOA pertama). `GUARDIAN_MASK=7` menjalankan tiga penjaga P1–P3 dan memerlukan ketiga key Guardian.
 
