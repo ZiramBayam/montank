@@ -321,8 +321,9 @@ function mergePlayers(previous, rows = []) {
 }
 function tierFor(entry = {}) {
   if (entry.verdict === "RAW_BREACH" || entry.verdict === "EXECUTED") return "BREACH";
-  if (entry.verdict === "VETOED") return (entry.points ?? 0) >= 500 ? "G2" : (entry.points ?? 0) >= 250 ? "G1" : "VICTIM";
-  if (entry.verdict === "REJECTED") return (entry.points ?? 0) >= 50 ? "LAYER0" : "ATTEMPT";
+  const basePoints = entry.basePoints ?? entry.points ?? 0;
+  if (entry.verdict === "VETOED") return basePoints >= 500 ? "G2" : basePoints >= 250 ? "G1" : "VICTIM";
+  if (entry.verdict === "REJECTED") return basePoints >= 50 ? "LAYER0" : "ATTEMPT";
   if (["PROPOSAL_FAILED", "LIVE_CHAIN_UNAVAILABLE"].includes(entry.verdict)) return "LAYER0";
   return "ATTEMPT";
 }
@@ -333,7 +334,7 @@ function upsertAttack(attacks, entry = {}) {
   const tier = tierFor(entry);
   const item = { ...previous, id, nick: entry.nickname ?? previous?.nick ?? "—", text: entry.text ?? previous?.text ?? "",
     labels: [entry.source === "fallback parser" ? "fallback parser" : null, entry.source === "rehearsal" || entry.rehearsal ? "REHEARSAL" : null, entry.simulated ? "SIM" : null].filter(Boolean),
-    verdict: { tier, points: entry.points ?? previous?.verdict?.points ?? 0 }, guards: previous?.guards ?? null,
+    verdict: { tier, points: entry.points ?? previous?.verdict?.points ?? 0 }, promptQuality: entry.promptQuality ?? previous?.promptQuality ?? null, guards: previous?.guards ?? null,
     timeline: previous?.timeline ?? null, amountMon: Number(entry.amount) || null, ts: Date.now(), virtual: !!entry.rehearsal };
   return [item, ...attacks.filter((a) => a.id !== id)].slice(0, 60);
 }
@@ -354,8 +355,9 @@ function updatePipeline(prev, m) {
   return { ...prev, attacks: prev.attacks.map((a) => a.id === target.id ? { ...a, timeline, txUrl: m.txHash ? prev.txExplorerBaseUrl + m.txHash : a.txUrl } : a) };
 }
 function updateAttackResult(prev, m) {
-  const tier = m.verdict === "RAW_BREACH" || m.verdict === "EXECUTED" ? "BREACH" : m.verdict === "VETOED" ? (m.points >= 500 ? "G2" : m.points >= 250 ? "G1" : "VICTIM") : m.layer === "LAYER0" ? "LAYER0" : "ATTEMPT";
-  return { ...prev, attacks: prev.attacks.map((a) => a.id === m.attackId ? { ...a, verdict: { tier, points: m.points }, labels: [...new Set([...a.labels, ...(m.breakdown ?? []).filter((x) => /fallback parser|rehearsal/i.test(x))])] } : a), activeAttackId: null, queuePosition: null, lastAttackResult: m };
+  const basePoints = m.basePoints ?? m.points;
+  const tier = m.verdict === "RAW_BREACH" || m.verdict === "EXECUTED" ? "BREACH" : m.verdict === "VETOED" ? (basePoints >= 500 ? "G2" : basePoints >= 250 ? "G1" : "VICTIM") : m.layer === "LAYER0" ? "LAYER0" : "ATTEMPT";
+  return { ...prev, attacks: prev.attacks.map((a) => a.id === m.attackId ? { ...a, verdict: { tier, points: m.points }, promptQuality: m.promptQuality ?? a.promptQuality, labels: [...new Set([...a.labels, ...(m.breakdown ?? []).filter((x) => /fallback parser|rehearsal/i.test(x))])] } : a), activeAttackId: null, queuePosition: null, lastAttackResult: m };
 }
 
 function applySpotlight(prev, m) {

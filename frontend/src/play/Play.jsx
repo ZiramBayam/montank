@@ -14,6 +14,8 @@ const TIER_SFX = { ATTEMPT: "t10", LAYER0: "t50", VICTIM: "t100", G1: "t250", G2
 const BOLT_MS = 380;
 const GAP_MS = 420;
 const BOOT_MS = 900;
+const RAW_ROUND_MS = 60_000;
+const SHIELD_ROUND_MS = 120_000;
 const BOOT_LINES = ["CONNECTING TO ARENA…", "SYNC LEDGER…", "ARMING PROMPT ENGINE…"];
 const GUARD_FALLBACK = [
   { clear: false, ms: 0 },
@@ -188,6 +190,10 @@ export default function Play() {
   const coolLeft = cooling ? Math.ceil((coolUntil - now) / 1000) : QUEUE.COOLDOWN_S;
   const queueFull = state.queueWaiting >= QUEUE.MAX;
   const attackActive = inFlight || Boolean(state.activeAttackId);
+  const phaseDuration = raw ? RAW_ROUND_MS : SHIELD_ROUND_MS;
+  const phaseRemainingMs = Math.max(0, state.startedAt + phaseDuration - now);
+  const finishRemainingMs = raw ? phaseRemainingMs + SHIELD_ROUND_MS : phaseRemainingMs;
+  const transactionUrl = state.attacks.find((attack) => attack.txUrl)?.txUrl ?? state.breachRaw?.txUrl ?? null;
 
   const send = () => {
     const text = draft.trim();
@@ -273,11 +279,12 @@ export default function Play() {
       {leaveError && <p className="err center" role="alert">{leaveError}</p>}
 
       {over ? (
-        <FinalBoard rank={rank} myScore={myScore} standing={standing} me={nick} />
+        <FinalBoard rank={rank} myScore={myScore} standing={standing} me={nick} txUrl={transactionUrl} rehearsal={state.virtual} />
       ) : lobby ? (
         <WaitingRoom nick={nick} playerCount={playerCount} others={standing} ownerToken={ownerToken} canStart={Boolean(state.playerId)} onStart={startGame} starting={starting} startError={startError} roundStartsAt={state.roundStartsAt} />
       ) : (
         <>
+          <GameTimeline phase={state.phase} phaseRemainingMs={phaseRemainingMs} finishRemainingMs={finishRemainingMs} />
           {/* 1 Leaderboard */}
           <section className="iboard card">
             <h2 className="purple">Scoreboard</h2>
@@ -302,6 +309,13 @@ export default function Play() {
             {myHistory.map((a) => (
               <div className="hrow" key={a.id}>
                 <span className="htx">{state.panic ? HONEST.SENSOR : a.text}</span>
+                {a.promptQuality && (
+                  <div className="quality-result">
+                    <b>Kualitas prompt {a.promptQuality.score}/100</b>
+                    <span>Bonus +{a.promptQuality.bonus} poin</span>
+                    <small>{a.promptQuality.feedback.join(" ")}</small>
+                  </div>
+                )}
                 <span className="hmeta">
                   {a.labels.map((l) => (
                     <span className="badge" key={l}>[{l}]</span>
@@ -363,7 +377,7 @@ export default function Play() {
               <span className="dim t-num">Queue {state.queueWaiting}/{QUEUE.MAX}</span>
             </div>
             {state.queuePosition != null && <p className="dim">Masuk antrean #{state.queuePosition}{state.queueEtaMs ? ` · estimasi ${Math.ceil(state.queueEtaMs / 1000)} dtk` : ""}</p>}
-            <small className="dim">Spectator text passes the backend profanity filter before it appears on /stage (PRD 8).</small>
+            <small className="dim">Kualitas dinilai dari kejelasan aksi, konteks, detail konkret, alur, dan keringkasan. Bonus kualitas: hingga 200 poin per serangan.</small>
             {mode !== "real" && <p className="err" role="status">{mode === "connecting" ? "Menghubungkan ke server…" : "Koneksi terputus. Menghubungkan ulang…"}</p>}
             <button className="btn btn--stop big sendbtn" onClick={send} disabled={mode !== "real" || attackActive || cooling || queueFull}>
               {mode !== "real" ? (mode === "connecting" ? "MENGHUBUNGKAN…" : "MENYAMBUNG ULANG…") : queueFull ? "Queue full" : attackActive ? (state.queuePosition ? `Queue #${state.queuePosition}` : "Attack in progress…") : cooling ? `Cooldown ${coolLeft}s` : "ATTACK"}
@@ -503,7 +517,30 @@ function StatusLine({ stage, outcome }) {
   return <p className="astatus dim blink-idle">ATTACK TO SCORE</p>;
 }
 
-function FinalBoard({ rank, myScore, standing, me }) {
+function formatRemaining(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function GameTimeline({ phase, phaseRemainingMs, finishRemainingMs }) {
+  const isRaw = phase === PHASE.RAW;
+  return (
+    <section className="game-timeline card" aria-label="Waktu permainan">
+      <div className="timeline-item">
+        <span className="dim">{isRaw ? "Ronde berikutnya · Ronde 2" : "Ronde berikutnya"}</span>
+        <b>{isRaw ? formatRemaining(phaseRemainingMs) : "Ronde terakhir"}</b>
+      </div>
+      <div className="timeline-item">
+        <span className="dim">Permainan selesai dalam</span>
+        <b>{formatRemaining(finishRemainingMs)}</b>
+      </div>
+    </section>
+  );
+}
+
+function FinalBoard({ rank, myScore, standing, me, txUrl, rehearsal }) {
   const found = standing.some((r) => r.n === me) ? rank : 0;
   return (
     <section className="card final">
@@ -515,9 +552,15 @@ function FinalBoard({ rank, myScore, standing, me }) {
         Final score: <b className="score">{myScore}</b>
       </p>
       <p className="dim">Mau main lagi? Tetap di halaman ini. Host akan membuka lobby baru dan skor ronde berikutnya mulai dari nol.</p>
-      <a className="txlink" href="#" onClick={(e) => e.preventDefault()}>
-        Your transaction on MonadScan (sent on a real run) ↗
-      </a>
+      {txUrl ? (
+        <a className="txlink" href={txUrl} target="_blank" rel="noreferrer">
+          View transaction on MonadScan ↗
+        </a>
+      ) : (
+        <p className="dim" role="status">
+          {rehearsal ? "Mode rehearsal: tidak ada transaksi on-chain yang dikirim." : "Tidak ada transaksi on-chain untuk sesi ini."}
+        </p>
+      )}
     </section>
   );
 }
