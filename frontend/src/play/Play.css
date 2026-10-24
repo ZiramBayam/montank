@@ -20,9 +20,18 @@
   font-family: var(--f-display);
 }
 .phead .me { display: flex; align-items: center; gap: 8px; }
-/* nick selalu dalam huruf persis seperti input user (Pixelify punya lowercase asli) */
-.phead .me b { color: var(--yellow); font-size: 0.95rem; font-family: var(--f-pixel); }
+/* nick di phead — font Silkscreen 8-bit blok; input lowercase tampil kapital */
+.phead .me b { color: var(--yellow); font-size: 0.8rem; font-family: var(--f-display); letter-spacing: 0.04em; }
 .me-stats { display: flex; gap: 14px; align-items: baseline; }
+.ptimer {
+  font-family: var(--f-pixel);
+  font-size: 1.15rem;
+  color: var(--yellow);
+  min-width: 3.2ch;
+  text-align: center;
+}
+.ptimer--hot { color: var(--red); animation: pulse-red 0.5s infinite; }
+@keyframes pulse-red { 50% { opacity: 0.35; } }
 .phead-leave { min-height: 32px; padding: 5px 8px; font-size: 0.65rem; white-space: nowrap; }
 
 .center { text-align: center; }
@@ -114,7 +123,7 @@
 /* "di depan brankas": kepala menimpa tepi bawah pintu, badan di bawahnya */
 .gpos--front { position: relative; z-index: 5; grid-column: 2; grid-row: 2; margin-top: -28px; }
 
-.rawline { margin: 6px 0 2px; font-family: var(--f-pixel); }
+.rawline { margin: 6px 0 2px; font-family: var(--f-pixel); text-align: center; }
 
 /* idle: bob 1px sinkron di kedua frame, kedip mata, LED brankas */
 .gmain { display: inline-flex; }

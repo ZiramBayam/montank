@@ -19,7 +19,7 @@
   --shadow: 6px 6px 0 0 #000;
 
   --f-display: "Silkscreen", monospace;
-  --f-pixel: "Pixelify Sans", "Segoe UI", sans-serif;
+  --f-pixel: "Silkscreen", monospace; /* unifikasi 8-bit: was Pixelify Sans (bentuknya rounded) */
   --f-score: "VT323", monospace;
 
   --step-1: 120ms;

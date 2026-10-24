@@ -90,7 +90,7 @@ function TopBar({ state, leftS, mode }) {
   return (
     <header className="topbar card--flat">
       <span className="brand">
-        <Sprite name="shield" size={30} />
+        <Sprite name="logo" size={30} />
         <span>MONTANK</span>
       </span>
       <span className="cell">

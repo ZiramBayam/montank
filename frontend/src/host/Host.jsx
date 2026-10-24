@@ -49,7 +49,7 @@ export default function Host() {
   return (
     <div className="host">
       <header className="hhead card--flat">
-        <Sprite name="shield" size={24} />
+        <Sprite name="logo" size={24} />
         <b>HOST PANEL</b>
         <span className={`badge ${mode === "real" ? "" : "badge--sim"}`}>
           {mode === "real" ? (state.virtual ? "WS: REHEARSAL" : "WS: LIVE") : mode === "connecting" ? "CONNECTING" : "BACKEND OFFLINE"}
