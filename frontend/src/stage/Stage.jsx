@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import QRCode from "qrcode";
 import { useBus } from "../state/RoomCtx.js";
-import { roomFromUrl } from "../state/room.js";
 import { PHASE, ROUND_MS } from "../state/phases.js";
 import { GUARDS, TIERS, HONEST, QUEUE } from "../data/deck.js";
 import Sprite from "../components/Sprite.jsx";
@@ -11,9 +9,7 @@ import "./Stage.css";
 export default function Stage() {
   const { state, api, mode } = useBus();
   const { phase } = state;
-  const roomCode = roomFromUrl();
   const [lobbyInfo, setLobbyInfo] = useState(null);
-  const [roomQr, setRoomQr] = useState(null);
   useEffect(() => {
     let active = true;
     fetch("/api/lobby").then((response) => response.ok ? response.json() : null)
@@ -21,15 +17,6 @@ export default function Stage() {
       .catch(() => {});
     return () => { active = false; };
   }, []);
-  useEffect(() => {
-    if (!roomCode || mode === "real") { setRoomQr(null); return undefined; }
-    let active = true;
-    QRCode.toDataURL(`${window.location.origin}/play?room=${roomCode}`, { width: 400, margin: 2 })
-      .then((dataUrl) => { if (active) setRoomQr(dataUrl); })
-      .catch(() => {});
-    return () => { active = false; };
-  }, [roomCode, mode]);
-
   // Panic Blur: hotkey Spacebar (PRD 8)
   useEffect(() => {
     const onKey = (e) => {
@@ -83,7 +70,7 @@ export default function Stage() {
   return (
     <div className="stage dither">
       <TopBar state={state} leftS={leftS} mode={mode} />
-      {phase === PHASE.LOBBY && <Lobby state={state} lobbyInfo={lobbyInfo} qrOverride={roomQr} manualUrl={roomCode ? `${window.location.origin}/play?room=${roomCode}` : null} />}
+      {phase === PHASE.LOBBY && <Lobby state={state} lobbyInfo={lobbyInfo} />}
       {phase === PHASE.RAW && <RawRound state={state} />}
       {phase === PHASE.SHIELD && <Shield state={state} focus={focus} api={api} />}
       {phase === PHASE.OVER && <Podium state={state} />}
@@ -137,7 +124,7 @@ function TopBar({ state, leftS, mode }) {
         The Cashier Agent is intentionally gullible.
       </span>
       <span className={`badge ${mode === "real" ? "" : "badge--sim"}`}>
-        {mode === "real" ? (state.virtual ? "REHEARSAL" : "LIVE") : ["engine", "client"].includes(mode) ? "ROOM DEMO" : mode === "connecting" ? "CONNECTING" : "OFFLINE"}
+        {mode === "real" ? (state.virtual ? "REHEARSAL" : "LIVE") : mode === "connecting" ? "CONNECTING" : "OFFLINE"}
       </span>
     </header>
   );
@@ -148,11 +135,11 @@ function Badge({ children, sim, warn }) {
 }
 
 /* ---------- Lobby: QR + nickname live ---------- */
-function Lobby({ state, lobbyInfo, qrOverride, manualUrl }) {
+function Lobby({ state, lobbyInfo }) {
   const joined = Object.keys(state.players);
   return (
     <div className="zone lobby">
-      <img src={qrOverride || lobbyInfo?.qrUrl || "/qr.png"} alt="QR to join from a phone" className="qr card card--lift" />
+      <img src={lobbyInfo?.qrUrl || "/qr.png"} alt="QR to join from a phone" className="qr card card--lift" />
       <div className="lobbyinfo">
         <h1>RAID THE CASHIER</h1>
         <ul className="rules">
@@ -165,7 +152,7 @@ function Lobby({ state, lobbyInfo, qrOverride, manualUrl }) {
           </li>
         </ul>
         <p className="dim blink-idle">ATTACK TO SCORE — ROOM IS OPEN</p>
-        <p className="dim">Open manually: <b>{manualUrl || lobbyInfo?.manualUrl || `${window.location.origin}/play`}</b></p>
+        <p className="dim">Open manually: <b>{lobbyInfo?.manualUrl || `${window.location.origin}/play`}</b></p>
       </div>
       <div className="board card">
         <h2>Players joined ({state.playerCount ?? joined.length})</h2>
@@ -389,17 +376,17 @@ function Podium({ state }) {
     .map(([nick, p]) => ({ nick, score: p.score }))
     .sort((a, b) => b.score - a.score);
   const attacks = state.attacks;
-  const guardMsFlat = attacks.flatMap((a) => a.guards?.map((g) => g.ms) ?? []);
-  const median = guardMsFlat.length
-    ? [...guardMsFlat].sort((a, b) => a - b)[Math.floor(guardMsFlat.length / 2)]
-    : null;
+  const median = state.telemetry?.medianEndToEndMs;
   const held = state.bank.heldMon.toFixed(1);
   const breaches = state.telemetry?.breaches ?? attacks.filter((a) => a.verdict.tier === "BREACH").length;
-  const code = `import { AegisVaultClient } from "aegis-vault-sdk";
+  const code = `import { createWalletClient, http, keccak256, parseEther, toBytes } from "viem";
 
-const vault = new AegisVaultClient(RPC_WS, VAULT_ADDR);
-vault.on("guardianDecision", (d) => broadcast("/stage", d));
-await vault.proposeAction({ to, amount, intentHash }); `;
+const worker = createWalletClient({ account, chain, transport: http(RPC_HTTP) });
+await worker.writeContract({
+  address: VAULT_ADDR, abi: aegisVaultAbi, functionName: "proposeAction",
+  args: [actionId, recipient, parseEther(amount), keccak256(toBytes(attackText))],
+  gas: 120_000n,
+});`;
   return (
     <div className="zone podium">
       <section className="podcard card">
@@ -414,14 +401,14 @@ await vault.proposeAction({ to, amount, intentHash }); `;
         </div>
       </section>
       <section className="tele card">
-        <h2>ON-CHAIN TELEMETRY CARD</h2>
+        <h2>ARENA TELEMETRY</h2>
         <ul className="tgrid">
           <li><span className="dim">Total attacks</span><b className="num">{state.telemetry?.totalAttacks ?? attacks.length}</b></li>
           <li><span className="dim">Vetoes applied</span><b className="num-bad">{state.telemetry?.vetoes ?? state.vetoCount}</b></li>
-          <li><span className="dim">Median guard latency</span><b className="num-ok">{median ? `${median}ms` : "—"}</b></li>
+          <li><span className="dim">Median result latency</span><b className="num-ok">{median != null ? `${median}ms` : "—"}</b></li>
           <li><span className="dim">Funds held</span><b className="num-bad">{held} MON</b></li>
           <li><span className="dim">Full breach</span><b className="num-ok">{breaches}</b></li>
-          <li><span className="dim">Source</span><b className="dim">on-chain events{state.virtual ? " · virtual" : ""}</b></li>
+          <li><span className="dim">Source</span><b className="dim">backend + Monad logs{state.virtual ? " · simulated" : " · live"}</b></li>
         </ul>
         <pre className="code card card--flat">{code}</pre>
       </section>

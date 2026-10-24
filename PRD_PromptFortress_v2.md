@@ -60,14 +60,14 @@ Demo dikendalikan **1 Host** di panggung lewat state machine terpusat (waktu 300
 
 ### 2.1 Antrean serangan: dimensioning (dihitung ulang)
 
-Hitungan v1 tidak muat: 30 pemain × cooldown 5 detik ≈ **6 serangan/detik**, sedangkan layanan ≈ **1 serangan per ~1,2 detik (0,83/detik)**. Setelah 60 detik backlog ≈ (6 − 0,83) × 60 ≈ **300 serangan**, jadi "feedback 1–2 detik" mustahil.
+Dengan cooldown 5 detik, 30 pemain masih dapat mengirim serangan jauh lebih cepat daripada layanan ≈ **1 serangan per ~1,2 detik (0,83/detik)**. Antrean dibatasi 12; saat penuh, serangan baru ditolak dengan pesan antrean penuh. Jangan menjanjikan waktu hasil 1–2 detik.
 
 Keputusan v2 (antrean adalah bagian permainan, bukan disembunyikan):
 
 | Parameter | Nilai awal | Catatan |
 | :---- | :---- | :---- |
 | Serangan aktif per pemain | **1** | Pemain tidak bisa menembak lagi sebelum serangannya selesai diproses |
-| Cooldown | **25 detik, dihitung setelah hasil keluar** | Tuning saat gladi (rentang 20–30 detik) |
+| Cooldown | **5 detik, dihitung setelah hasil keluar** | Konfigurasi aplikasi saat ini; uji tekanan antrean saat gladi |
 | Panjang antrean maksimum | **12** | Penuh → "Antrean penuh, coba lagi". Ini mekanik game, bukan error |
 | Laju layanan | ≈ 0,83/detik | ⚠️ Tergantung rate limit LLM (3.5) — key tier berbayar, verifikasi tetap di spike |
 | Kapasitas Ronde 2 | ≈ 45–50 serangan terproses per 60 detik | Beri tahu pemain: "kamu bersaing memperebutkan slot" |
@@ -404,8 +404,8 @@ Estetika **Neobrutalism Dark Mode**: latar `#0D0D11`, border hitam 3px, hard-sha
    * Baris 1, Kedok: [👑 Founder Monad] [😭 Anak Kos Nunggak] [🚨 Auditor Keamanan] [🤖 Sistem Internal]
    * Baris 2, Alasan: [Tagihan Server Meledak] [Klaim Bounty PR #99] [Beli Kopi Se-Venue] [Refund Transaksi Gagal]
    * Baris 3, Taktik: [Tarik 4.9 MON (di bawah limit)] [Mode Darurat Tanpa Cek] [Pura-Pura Simulasi] [Pecah Jadi 4.9 MON Berkali-kali]
-3. **Preview prompt** otomatis. **Ketik manual (maks 140 karakter) = P1/P2.** Kartu preset saja bisa terlihat seperti staged, jadi input manual membuktikan serangan tidak diskrip; wajib dengan filter (bagian 8).
-4. **Tombol [🚀 SERANG]:** feedback langsung **"Masuk antrean #n"** (<200 ms). Hasil akhir muncul saat giliran diproses. Cooldown 25 detik dihitung **setelah hasil**. Saat antrean penuh, tombol menampilkan "Antrean penuh".
+3. **Preview prompt** otomatis. **Ketik manual (maks 1.000 karakter) = P1/P2.** Kartu preset saja bisa terlihat seperti staged, jadi input manual membuktikan serangan tidak diskrip; wajib dengan filter (bagian 8).
+4. **Tombol [🚀 SERANG]:** feedback langsung **"Masuk antrean #n"** (<200 ms). Hasil akhir muncul saat giliran diproses. Cooldown 5 detik dihitung **setelah hasil**. Saat antrean penuh, tombol menampilkan "Antrean penuh".
 
 ### 7.2 Projector View (`/stage`)
 
@@ -426,7 +426,7 @@ Bento grid 4 zona (16:9, font besar):
 | **2. LLM lambat / kena limit** | `AbortController` 1.200 ms → fallback parser (ditandai di kill-feed). Pantau error 429; turunkan laju antrean otomatis. |
 | **3. Tidak ada yang berhasil menipu Agen Korban** | Agen sudah sengaja lugu (diumumkan). Jika 15 detik pertama Ronde 2 tak ada `proposeAction`, host menembak **"Contoh Serangan dari Tim"** dari HP tim, dengan label jelas di kill-feed. Tidak ada klaim persentase jaminan. |
 | **4. Wi-Fi ruangan mati** | Tombol host **[Simulasi Kerumunan]** (label "SIMULASI" tampil di kill-feed) + 2 HP tim via hotspot pribadi. |
-| **5. Antrean menumpuk** | Cap 12, 1 aktif/pemain, cooldown 25 detik (2.1). Gladi dengan ≥10 HP. |
+| **5. Antrean menumpuk** | Cap 12, 1 aktif/pemain, cooldown 5 detik (2.1). Gladi dengan ≥10 HP; antrean penuh menolak serangan baru. |
 | **6. Saldo EOA habis** | Hitung kebutuhan (3.6), minta MON ke panitia, kurangi jumlah Worker, tampilkan alarm saldo di panel host. |
 | **7. Penjaga mati/lambat** | Fail-closed: Jalur B membeku/kedaluwarsa, Jalur A tetap jalan. P3 punya timeout 250 ms → regex. Host panel menampilkan status tiap penjaga. |
 | **8. Listener terputus** | Dual WebSocket + dedup (6.3); reconnect otomatis. |
@@ -543,7 +543,7 @@ Bento grid 4 zona (16:9, font besar):
 | Jawaban "kenapa tidak `require()`" bolong; `invoiceRegistry` tak terpakai; P1/P2 mengulang cek statis | Dua jalur: penerima terdaftar (Layer 0, instan) vs penerima baru (penjaga); P1 = novelty/velocity, P2 = claim ledger | 1, 5, 6.1 |
 | Spike 20 sampel | ≥200 sampel, jeda penjaga 250 ms, pengukuran sama di Base Sepolia | 10.3 |
 | Saldo "≥15 MON × 7 EOA" tak dicek | Wajib cek Reserve Balance + minta MON ke panitia; skala demo dikecilkan | 3.6 |
-| Antrean tidak muat (±300 backlog) | 1 aktif/pemain, cooldown 25 detik, antrean maks 12, tampil di layar, feedback = posisi antrean | 2.1, 7 |
+| Antrean penuh akibat cooldown pendek | 1 aktif/pemain, cooldown 5 detik, antrean maks 12, tampil di layar, feedback posisi dan penolakan saat penuh | 2.1, 7 |
 | Pencairan di dalam `submitDecision` | `submitDecision` hanya mencatat; `executeAction` membayar dengan gas cap, tanpa propagasi revert | 5.2 |
 | Agen Korban ">80% dijamin" (terkesan staged) | Diumumkan sengaja lugu; fallback dan contoh tim diberi label; Level 2 opsional | 0, 6.4, 8 |
 | Contoh AiXBT/Freysa keliru dibingkai | Dipisah dan dilabeli apa adanya; angka wajib diverifikasi | 0 |

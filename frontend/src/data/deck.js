@@ -72,5 +72,5 @@ export const HONEST = {
 /* Queue parameters PRD 2.1 */
 export const QUEUE = {
   MAX: 12,
-  COOLDOWN_S: 25,
+  COOLDOWN_S: 5,
 };

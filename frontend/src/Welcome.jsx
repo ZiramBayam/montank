@@ -1,31 +1,53 @@
-// Halaman pembuka: CREATE ROOM / JOIN ROOM. Demo lintas-tab — room hidup per device.
+// Halaman pembuka: CREATE ROOM / JOIN ROOM. Kode undangan dikelola server (lintas perangkat).
 // CREATE langsung masuk lobby /play (QR + invite link ada di ruang tunggu).
 import { useState } from "react";
 import Sprite from "./components/Sprite.jsx";
-import { generateRoomCode, isRoomCode, listRooms } from "./state/room.js";
+import { isRoomCode } from "./state/room.js";
 import "./Welcome.css";
 
 export default function Welcome() {
   const [joinInput, setJoinInput] = useState("");
   const [findOpen, setFindOpen] = useState(false);
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const create = () => {
-    const code = generateRoomCode();
-    window.location.href = `/play?room=${code}`;
+  const create = async () => {
+    setErr("");
+    setBusy(true);
+    try {
+      const response = await fetch("/api/rooms", { method: "POST" });
+      if (!response.ok) throw new Error("Room service unavailable");
+      const result = await response.json();
+      if (!isRoomCode(result.roomCode)) throw new Error("Invalid room code");
+      window.location.href = `/play?room=${result.roomCode}`;
+    } catch {
+      setErr("Server room tidak dapat dijangkau. Coba lagi saat koneksi tersedia.");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const goJoin = () => {
+  const goJoin = async () => {
     const code = joinInput.toUpperCase().trim();
     if (!isRoomCode(code)) {
       setErr("Use the room format: PF-XXXX (4 letters/numbers).");
       return;
     }
-    if (!listRooms()[code]) {
-      setErr("Room not found on this device. Create it here first — demo rooms are cross-tab only.");
-      return;
+    setErr("");
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/rooms/${encodeURIComponent(code)}`);
+      const result = response.ok ? await response.json() : null;
+      if (!result?.valid) {
+        setErr("Kode undangan tidak aktif. Minta kode terbaru dari host.");
+        return;
+      }
+      window.location.href = `/play?room=${encodeURIComponent(code)}`;
+    } catch {
+      setErr("Kode tidak dapat diperiksa. Periksa koneksi lalu coba lagi.");
+    } finally {
+      setBusy(false);
     }
-    window.location.href = `/play?room=${code}`;
   };
 
   return (
@@ -47,7 +69,7 @@ export default function Welcome() {
       </header>
 
       <section className="wselect card">
-        <button className="btn btn--primary big" onClick={create}>
+        <button className="btn btn--primary big" onClick={create} disabled={busy}>
           CREATE ROOM
         </button>
         <button
@@ -73,7 +95,7 @@ export default function Welcome() {
               autoCapitalize="characters"
               autoComplete="off"
             />
-            <button className="btn btn--coin big" onClick={goJoin}>
+            <button className="btn btn--coin big" onClick={goJoin} disabled={busy}>
               JOIN →
             </button>
           </div>
@@ -82,7 +104,7 @@ export default function Welcome() {
       </section>
 
       <p className="footnote dim">
-        Demo sync = same device, many tabs (BroadcastChannel). Cross-device play needs the real WS backend.
+        Kode undangan dikelola server dan dapat dipakai peserta dari perangkat berbeda.
       </p>
     </div>
   );
