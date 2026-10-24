@@ -526,34 +526,7 @@ function GameTimeline({ phase, phaseRemainingMs, finishRemainingMs }) {
 }
 
 function FinalBoard({ rank, myScore, me, txUrl, rehearsal, onLeaveRoom, leaving }) {
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [leaderboard, setLeaderboard] = useState(null);
-  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
-  const [leaderboardError, setLeaderboardError] = useState("");
   const found = rank > 0 ? rank : 0;
-
-  const toggleLeaderboard = async () => {
-    if (showLeaderboard) {
-      setShowLeaderboard(false);
-      return;
-    }
-    setShowLeaderboard(true);
-    setLeaderboardError("");
-    if (leaderboard !== null) return;
-
-    setLeaderboardLoading(true);
-    try {
-      const roomCode = roomFromUrl();
-      const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/leaderboard`);
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !Array.isArray(result.standings)) throw new Error("Detail leaderboard tidak dapat dimuat.");
-      setLeaderboard(result.standings);
-    } catch (error) {
-      setLeaderboardError(error instanceof Error ? error.message : "Detail leaderboard tidak dapat dimuat.");
-    } finally {
-      setLeaderboardLoading(false);
-    }
-  };
 
   return (
     <section className="card final">
@@ -566,27 +539,16 @@ function FinalBoard({ rank, myScore, me, txUrl, rehearsal, onLeaveRoom, leaving 
       </p>
       <p className="dim">Mau main lagi? Tetap di halaman ini. Host akan membuka lobby baru dan skor ronde berikutnya mulai dari nol.</p>
       <div className="final-actions">
-        <button className="btn btn--coin big" type="button" onClick={() => void toggleLeaderboard()} aria-expanded={showLeaderboard}>
-          {leaderboardLoading ? "MEMUAT LEADERBOARD…" : showLeaderboard ? "SEMBUNYIKAN LEADERBOARD" : "LIHAT DETAIL LEADERBOARD"}
+        <button className="btn btn--coin big" type="button" onClick={() => {
+          const room = roomFromUrl();
+          window.location.href = `/leaderboard?room=${encodeURIComponent(room)}`;
+        }}>
+          LIHAT DETAIL LEADERBOARD
         </button>
         <button className="btn btn--go big" type="button" onClick={onLeaveRoom} disabled={leaving}>
           {leaving ? "KELUAR ROOM…" : "KEMBALI KE HALAMAN AWAL"}
         </button>
       </div>
-      {leaderboardError && <p className="err" role="alert">{leaderboardError}</p>}
-      {showLeaderboard && leaderboardLoading && <p className="dim center" role="status">Memuat semua peringkat…</p>}
-      {showLeaderboard && leaderboard && (
-        <section className="final-leaderboard" aria-label="Detail leaderboard">
-          <h2 className="purple">LEADERBOARD DETAIL</h2>
-          {leaderboard.length === 0 ? <p className="dim center">Belum ada pemain di leaderboard.</p> : leaderboard.map((player) => (
-            <div className={`final-leaderboard-row ${player.nickname === me ? "is-me" : ""}`} key={player.nickname}>
-              <span className="dim t-num">#{player.rank}</span>
-              <b>{player.nickname}</b>
-              <span className="score">{player.score}</span>
-            </div>
-          ))}
-        </section>
-      )}
       {txUrl ? (
         <a className="txlink" href={txUrl} target="_blank" rel="noreferrer">
           View transaction on MonadScan ↗
