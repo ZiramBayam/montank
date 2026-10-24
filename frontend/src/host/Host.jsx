@@ -18,7 +18,15 @@ export default function Host() {
   const { state, api, mode } = useBus();
   const room = roomFromUrl();
   const [log, setLog] = useState([]);
-  const readOnly = mode === "real" && state.hostAuthorized === false;
+  const [activeRoom, setActiveRoom] = useState("");
+  const readOnly = mode !== "real" || state.hostAuthorized === false;
+  useEffect(() => {
+    let active = true;
+    fetch("/api/lobby").then((response) => response.ok ? response.json() : null)
+      .then((lobby) => { if (active && lobby?.roomCode) setActiveRoom(lobby.roomCode); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
   useEffect(() => { unlockAudio(); }, []);
 
   const act = (fn, label) => {
@@ -27,6 +35,10 @@ export default function Host() {
   };
 
   const lowBank = state.bank.vaultMon < 5;
+  const invite = room || activeRoom;
+  const hostToken = new URLSearchParams(window.location.search).get("t") || new URLSearchParams(window.location.search).get("token");
+  const stageUrl = `/stage${invite ? `?room=${encodeURIComponent(invite)}` : ""}${hostToken ? `${invite ? "&" : "?"}t=${encodeURIComponent(hostToken)}` : ""}`;
+  const playUrl = invite ? `/play?room=${encodeURIComponent(invite)}` : "/";
 
   return (
     <div className="host">
@@ -34,11 +46,11 @@ export default function Host() {
         <Sprite name="shield" size={24} />
         <b>HOST PANEL</b>
         <span className={`badge ${mode === "real" ? "" : "badge--sim"}`}>
-          {mode === "real" ? (state.virtual ? "WS: REHEARSAL" : "WS: LIVE") : mode === "connecting" ? "CONNECTING" : room ? "ROOM DEMO (cross-tab)" : "BACKEND OFFLINE"}
+          {mode === "real" ? (state.virtual ? "WS: REHEARSAL" : "WS: LIVE") : mode === "connecting" ? "CONNECTING" : "BACKEND OFFLINE"}
         </span>
-        {room && <b className="badge">ROOM {room}</b>}
-        <a className="badge" href={room ? `/stage?room=${room}` : "/stage"} target="_stage" rel="noreferrer">open /stage ↗</a>
-        <a className="badge" href={room ? `/play?room=${room}` : "/play"} target="_play" rel="noreferrer">open /play ↗</a>
+        {invite && <b className="badge">ROOM {invite}</b>}
+        <a className="badge" href={stageUrl} target="_stage" rel="noreferrer">open /stage ↗</a>
+        <a className="badge" href={playUrl} target="_play" rel="noreferrer">open /play ↗</a>
       </header>
 
       <section className="card hzone">

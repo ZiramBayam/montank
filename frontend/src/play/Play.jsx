@@ -129,7 +129,7 @@ export default function Play() {
               </span>
             ))}
             <div className="cd" aria-hidden="true"><i /></div>
-            {mode !== "real" && <p className="dim center">{["engine", "client"].includes(mode) ? "ROOM DEMO — synced across tabs" : "DEMO MODE — backend not connected"}</p>}
+            {mode !== "real" && <p className="dim center">DEMO MODE — backend not connected</p>}
           </div>
         </section>
       </div>
@@ -155,12 +155,12 @@ export default function Play() {
             autoCapitalize="off"
             autoComplete="off"
           />
-          {(error || state.joinError) && <p className="err">{error || state.joinError}</p>}
+          {(error || state.joinError) && <p className="err">{error || (state.joinError === "ROOM_NOT_FOUND" ? "Kode room tidak valid atau sudah tidak aktif. Kembali dan minta kode terbaru dari host." : state.joinError)}</p>}
           <button className="btn btn--coin big" onClick={join} disabled={booting || !nick.trim()}>
             Join
           </button>
           <p className="dim center">Nickname is saved on this device. No wallet connection.</p>
-          {mode !== "real" && <p className="dim center">{["engine", "client"].includes(mode) ? "ROOM DEMO — synced across tabs" : mode === "connecting" ? "Connecting to backend…" : "Backend disconnected"}</p>}
+          {mode !== "real" && <p className="dim center">{mode === "connecting" ? "Connecting to backend…" : "Backend disconnected"}</p>}
         </section>
       </div>
     );
@@ -289,13 +289,13 @@ export default function Play() {
             <h2 className="purple">Your Attack Prompt</h2>
             <textarea
               value={draft}
-              onChange={(e) => setDraft(e.target.value.slice(0, 140))}
+              onChange={(e) => setDraft(e.target.value.slice(0, 1000))}
               placeholder={raw ? "No guards — type your pitch…" : "Write the prompt to trick the Cashier Agent & slip past 3 guards…"}
               rows={3}
-              maxLength={140}
+              maxLength={1000}
             />
             <div className="fireline">
-              <span className="dim t-num">{draft.length}/140</span>
+              <span className="dim t-num">{draft.length}/1000</span>
               <span className="dim t-num">Queue {state.queueWaiting}/{QUEUE.MAX}</span>
             </div>
             {state.queuePosition != null && <p className="dim">Masuk antrean #{state.queuePosition}{state.queueEtaMs ? ` · estimasi ${Math.ceil(state.queueEtaMs / 1000)} dtk` : ""}</p>}

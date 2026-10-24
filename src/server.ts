@@ -3,7 +3,8 @@ import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import { resolve } from 'node:path';
 import QRCode from 'qrcode';
-import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { isAddress, type Address } from 'viem';
 import { config } from './config.js';
 import { ChainService } from './chain.js';
@@ -17,9 +18,29 @@ type Socket = import('ws').WebSocket;
 interface Client { socket: Socket; channel: 'play' | 'stage' | 'host'; authorized: boolean; ip: string; playerId?: string; }
 
 const app = Fastify({ logger: true, bodyLimit: 2048, trustProxy: config.trustProxy });
-await app.register(websocket, { options: { maxPayload: 2048, perMessageDeflate: false } });
+await app.register(websocket, { options: { maxPayload: 8192, perMessageDeflate: false } });
 await app.register(fastifyStatic, { root: resolve(process.cwd(), 'frontend/dist'), wildcard: true });
 const room = new Room();
+const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ROOM_CODE_RE = /^PF-[ABCDEFGHJKLMNPQRSTUVWXYZ2-9]{4}$/;
+let activeRoomCode = '';
+async function loadActiveRoomCode(): Promise<void> {
+  const path = resolve(process.cwd(), 'data/room-invite.json');
+  try {
+    const saved = JSON.parse(await readFile(path, 'utf8')) as { roomCode?: unknown };
+    if (typeof saved.roomCode === 'string' && ROOM_CODE_RE.test(saved.roomCode)) {
+      activeRoomCode = saved.roomCode;
+      return;
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') app.log.warn(error, 'Could not restore room invite code');
+  }
+  activeRoomCode = `PF-${Array.from({ length: 4 }, () => ROOM_ALPHABET[randomInt(ROOM_ALPHABET.length)]).join('')}`;
+  await mkdir(resolve(process.cwd(), 'data'), { recursive: true });
+  const temp = `${path}.tmp`;
+  await writeFile(temp, JSON.stringify({ roomCode: activeRoomCode }), 'utf8');
+  await rename(temp, path);
+}
 const chain = new ChainService();
 const clients = new Set<Client>();
 const attacksByAction = new Map<string, AttackRecord>();
@@ -39,15 +60,22 @@ let vetoTotal = 0;
 let breachTotal = 0;
 const countedResults = new Set<string>();
 let latestRawBreach: { mon: string; secs: string; txHash?: string; simulated?: boolean } | null = null;
+const resultLatenciesMs: number[] = [];
 function publishRawBreach(payload: { mon: string; secs: string; txHash?: string; simulated?: boolean }): void {
   latestRawBreach = payload;
   broadcast('stage', 'raw_breach', payload);
 }
-function telemetrySnapshot(): Record<string, number> {
+function telemetrySnapshot(): Record<string, number | null> {
+  const ordered = [...resultLatenciesMs].sort((a, b) => a - b);
+  const middle = Math.floor(ordered.length / 2);
+  const medianEndToEndMs = ordered.length
+    ? ordered.length % 2 ? ordered[middle]! : Math.round((ordered[middle - 1]! + ordered[middle]!) / 2)
+    : null;
   return {
     totalAttacks: room.attacks.size,
     vetoes: vetoTotal,
     breaches: breachTotal,
+    medianEndToEndMs,
   };
 }
 
@@ -201,6 +229,8 @@ function sendAttackResult(attack: AttackRecord, layer: 'VICTIM' | 'LAYER0' | 'GU
   attack.points = points;
   if (!countedResults.has(attack.attackId)) {
     countedResults.add(attack.attackId);
+    resultLatenciesMs.push(Math.max(0, Date.now() - attack.createdAt));
+    if (resultLatenciesMs.length > 2000) resultLatenciesMs.shift();
     if (verdict === 'VETOED') vetoTotal += votesByAction.get((attack.actionId ?? '').toLowerCase())?.filter((vote) => vote.decision === 'VETO').length ?? 1;
     if (verdict === 'RAW_BREACH') breachTotal++;
   }
@@ -520,10 +550,12 @@ app.get('/health', async () => ({ ok: true, service: 'Montank backend', phase: r
 app.get('/', async (_request, reply) => reply.sendFile('index.html'));
 app.get('/api/lobby', async (request) => {
   const baseUrl = publicBaseUrl(request);
+  const playUrl = `${baseUrl}/play?room=${activeRoomCode}`;
   return {
   baseUrl,
-  playUrl: `${baseUrl}/play`,
-  manualUrl: `${baseUrl}/play`,
+  roomCode: activeRoomCode,
+  playUrl,
+  manualUrl: playUrl,
   qrUrl: `${baseUrl}/qr.png`,
   txExplorerBaseUrl: config.monadScanTxBaseUrl,
   players: room.players.size,
@@ -532,14 +564,24 @@ app.get('/api/lobby', async (request) => {
   message: 'Agen Bendahara sengaja dibuat lugu.',
   };
 });
+app.post('/api/rooms', async () => ({ roomCode: activeRoomCode }));
+app.get('/api/rooms/:roomCode', async (request) => {
+  const { roomCode } = request.params as { roomCode: string };
+  return { valid: roomCode.toUpperCase() === activeRoomCode };
+});
 app.get('/qr.png', async (request, reply) => {
-  const png = await QRCode.toBuffer(`${publicBaseUrl(request)}/play`, { width: 480, margin: 2, errorCorrectionLevel: 'M' });
+  const png = await QRCode.toBuffer(`${publicBaseUrl(request)}/play?room=${activeRoomCode}`, { width: 480, margin: 2, errorCorrectionLevel: 'M' });
   return reply.type('image/png').send(png);
 });
 
 for (const channel of ['play', 'stage', 'host'] as const) {
   for (const url of [`/${channel}`, `/ws/${channel}`]) app.route({ method: 'GET', url, handler: async (_request, reply) => reply.sendFile('index.html'), wsHandler: (socket, request) => {
     const query = request.query as Record<string, unknown>;
+    if (channel === 'play' && (typeof query.room !== 'string' || query.room.toUpperCase() !== activeRoomCode)) {
+      send(socket as unknown as Socket, { type: 'room_rejected' });
+      socket.close(4404, 'Invalid or missing room code');
+      return;
+    }
     const token = query.t ?? query.token;
     const client: Client = {
       socket: socket as unknown as Socket,
@@ -576,6 +618,7 @@ let workerTimer: NodeJS.Timeout;
 let spotlightTimer: NodeJS.Timeout;
 
 async function start(): Promise<void> {
+  await loadActiveRoomCode();
   await room.restore();
   await guardians.loadClaims();
   chain.start();

@@ -47,7 +47,7 @@ export const config = {
   queueMax: number('QUEUE_MAX', 12),
   playerCap: number('PLAYER_CAP', 40),
   joinsPerIp: number('JOINS_PER_IP', 3),
-  attackCooldownMs: number('ATTACK_COOLDOWN_MS', 25000),
+  attackCooldownMs: number('ATTACK_COOLDOWN_MS', 5000),
   serviceIntervalMs: number('SERVICE_INTERVAL_MS', 1200),
   maxNewRecipientsPerWindow: number('MAX_NEW_RECIPIENTS_PER_WINDOW', 6),
   newRecipientWindowMs: number('NEW_RECIPIENT_WINDOW_MS', 60000),

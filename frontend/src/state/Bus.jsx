@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { RoomCtx } from "./RoomCtx.js";
-import { roomFromUrl, newTabToken } from "./room.js";
+import { roomFromUrl } from "./room.js";
 import { QUEUE, ROWS, composeAttack } from "../data/deck.js";
 import { PHASE } from "./phases.js";
 
@@ -38,7 +38,7 @@ function initial() {
     startedAt: Date.now(),
     vaultOn: false,
     panic: false,
-    virtual: CONFIG.virtual || Boolean(roomCode),
+    virtual: CONFIG.virtual,
     bank: { vaultMon: CONFIG.vaultMon, rawMon: CONFIG.rawMon, heldMon: 0 },
     breachRaw: null, // {mon, secs}
     players: {},
@@ -50,8 +50,8 @@ function initial() {
     focusId: null,
     vetoCount: 0,
     clearCount: 0,
-    telemetry: { totalAttacks: 0, vetoes: 0, breaches: 0 },
-    hostAuthorized: Boolean(roomCode),
+    hostAuthorized: false,
+    telemetry: { totalAttacks: 0, vetoes: 0, breaches: 0, medianEndToEndMs: null },
   };
 }
 
@@ -102,32 +102,18 @@ export function BusProvider({ children, role: appRole }) {
     ref.current = state;
   }, [state]);
   const ws = useRef(null);
-  const bcRef = useRef(null);
-  const tabTok = useRef(null);
   const outbox = useRef([]);
   const push = useCallback((fn) => setState((prev) => fn(prev)), []);
 
   const send = useCallback((message) => {
-    if (roomCode) {
-      if (mode === "client" && bcRef.current) {
-        bcRef.current.postMessage({ type: "command", message });
-        return;
-      }
-      if (mode === "engine") {
-        applyLocalMessage(message, push, ref);
-        return;
-      }
-      outbox.current.push(message);
-      return;
-    }
     if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify(message));
     else if (ws.current?.readyState === WebSocket.CONNECTING) outbox.current.push(message);
-  }, [mode, push]);
+  }, []);
 
   useEffect(() => {
     let dead = false;
     let reconnectTimer;
-    if (roomCode || role === "welcome") {
+    if (role === "welcome") {
       if (role === "welcome") setMode("idle");
       return () => { dead = true; };
     }
@@ -135,7 +121,8 @@ export function BusProvider({ children, role: appRole }) {
       if (dead) return;
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const url = new URL(CONFIG.wsUrl || `${protocol}//${window.location.host}/ws/${role}`);
-      if (!CONFIG.wsUrl && ["host", "stage"].includes(role) && qs.has("t")) url.searchParams.set("t", qs.get("t"));
+      if (role === "play" && roomCode) url.searchParams.set("room", roomCode);
+      if (["host", "stage"].includes(role) && (qs.has("t") || qs.has("token"))) url.searchParams.set("t", qs.get("t") || qs.get("token"));
       const socket = new WebSocket(url);
       ws.current = socket;
       socket.onopen = () => {
@@ -163,6 +150,7 @@ export function BusProvider({ children, role: appRole }) {
           localStorage.removeItem("pf_player_id");
           push((prev) => ({ ...prev, joinError: m.reason, playerId: null, activeAttackId: null, queuePosition: null }));
         }
+        else if (m.type === "room_rejected") push((prev) => ({ ...prev, joinError: "ROOM_NOT_FOUND" }));
         else if (m.type === "scoreboard") push((prev) => ({ ...prev, players: mergePlayers(prev.players, m.top), myScore: m.score, myRank: m.rank }));
         else if (m.type === "player_joined") push((prev) => ({ ...prev, playerCount: m.count }));
         else if (m.type === "queue") push((prev) => ({ ...prev, queueWaiting: m.count ?? prev.queueWaiting }));
@@ -178,17 +166,18 @@ export function BusProvider({ children, role: appRole }) {
         else if (m.type === "attack_rejected") push((prev) => ({ ...prev, attackError: m.reason, activeAttackId: null, queuePosition: null }));
         else if (m.type === "cooldown") push((prev) => ({ ...prev, cooldownUntil: m.untilEpochSec * 1000 }));
         else if (m.type === "raw_breach") push((prev) => ({ ...prev, breachRaw: { mon: m.mon, secs: m.secs, txUrl: m.txHash ? prev.txExplorerBaseUrl + m.txHash : null } }));
-        else if (m.type === "telemetry") push((prev) => ({ ...prev, telemetry: { totalAttacks: m.totalAttacks ?? prev.telemetry.totalAttacks, vetoes: m.vetoes ?? prev.telemetry.vetoes, breaches: m.breaches ?? prev.telemetry.breaches } }));
+        else if (m.type === "telemetry") push((prev) => ({ ...prev, telemetry: { totalAttacks: m.totalAttacks ?? prev.telemetry.totalAttacks, vetoes: m.vetoes ?? prev.telemetry.vetoes, breaches: m.breaches ?? prev.telemetry.breaches, medianEndToEndMs: "medianEndToEndMs" in m ? m.medianEndToEndMs : prev.telemetry.medianEndToEndMs } }));
         else if (m.type === "lobby_info") push((prev) => ({ ...prev, lobbyInfo: m }));
         else if (m.type === "host_status") push((prev) => ({ ...prev, hostAuthorized: !!m.authorized, hostStatus: m, playerCount: m.players ?? prev.playerCount }));
         else if (m.type === "host_error" || m.type === "host_alert") push((prev) => ({ ...prev, hostMessage: m.message }));
       } catch { /* payload bukan JSON: abaikan */ }
       };
       socket.onerror = () => { if (!dead) setMode("disconnected"); };
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         if (ws.current === socket) ws.current = null;
         if (dead) return;
         setMode("disconnected");
+        if (event.code === 4404) return;
         reconnectTimer = setTimeout(connect, 1000 + Math.random() * 2000);
       };
     };
@@ -200,70 +189,6 @@ export function BusProvider({ children, role: appRole }) {
       ws.current = null;
     };
   }, [push, role]);
-
-  useEffect(() => {
-    if (!roomCode || typeof BroadcastChannel === "undefined") return undefined;
-    const bc = new BroadcastChannel(`pf_room_${roomCode}`);
-    bcRef.current = bc;
-    if (!tabTok.current) tabTok.current = newTabToken();
-    const myToken = tabTok.current;
-    const heartbeatKey = `pf_room_${roomCode}_hb`;
-    let elected = null;
-    const readHeartbeat = () => {
-      try { return JSON.parse(localStorage.getItem(heartbeatKey) || "null"); }
-      catch { return null; }
-    };
-    const claimRole = () => {
-      const current = readHeartbeat();
-      if (current && current.token !== myToken && Date.now() - current.at < 2600) {
-        elected = "client";
-        setMode("client");
-        return;
-      }
-      localStorage.setItem(heartbeatKey, JSON.stringify({ token: myToken, at: Date.now() }));
-      setTimeout(() => {
-        const latest = readHeartbeat();
-        elected = latest?.token === myToken ? "engine" : "client";
-        setMode(elected);
-      }, 60);
-    };
-    claimRole();
-    const heartbeat = setInterval(() => {
-      if (elected === "engine") localStorage.setItem(heartbeatKey, JSON.stringify({ token: myToken, at: Date.now() }));
-      else if (elected === "client") {
-        const current = readHeartbeat();
-        if (!current || Date.now() - current.at > 2600) { elected = null; claimRole(); }
-      }
-    }, 1000);
-    bc.onmessage = (event) => {
-      let message;
-      try { message = event.data; } catch { return; }
-      if (message?.type === "room_state" && elected === "client") {
-        push((previous) => ({ ...previous, ...message.state }));
-      } else if (message?.type === "command" && elected === "engine") {
-        applyLocalMessage(message.message, push, ref);
-      }
-    };
-    return () => {
-      clearInterval(heartbeat);
-      bc.close();
-      bcRef.current = null;
-    };
-  }, [push]);
-
-  useEffect(() => {
-    if (!roomCode || (mode !== "engine" && mode !== "client")) return;
-    const pending = outbox.current.splice(0);
-    for (const message of pending) {
-      if (mode === "client") bcRef.current?.postMessage({ type: "command", message });
-      else applyLocalMessage(message, push, ref);
-    }
-    const timer = mode === "engine" ? setInterval(() => {
-      tickEngine(push, ref, CONFIG.servingMs);
-      bcRef.current?.postMessage({ type: "room_state", state: ref.current });
-    }, 250) : null;
-    return () => { if (timer) clearInterval(timer); };
-  }, [mode, push]);
 
   useEffect(() => {
     let active = true;

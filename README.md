@@ -1,6 +1,6 @@
 # Montank — backend + frontend
 
-Full-stack demo Montank / Aegis-600. Backend menyediakan room state machine, host controls, pemain/rejoin, antrean, guard P1–P3, Gemini/fallback, integrasi AegisVault Monad, dedup `monadLogs`, treasury telemetry, dan QR lobby. Frontend React menyediakan layar pemain, panggung, dan host.
+Full-stack demo Montank / Aegis-600. Backend menyediakan satu arena aktif, kode undangan lintas perangkat, room state machine, host controls, pemain/rejoin, antrean, guard P1–P3, Gemini/fallback, integrasi AegisVault Monad, dedup `monadLogs`, treasury telemetry, dan QR lobby. Frontend React menyediakan layar pemain, panggung, dan host.
 
 ## Jalankan mode gladi
 
@@ -32,14 +32,18 @@ Default `REHEARSAL=true`: LLM diganti stub lokal, tidak ada transaksi RPC, dan `
 - `GET /`, `/play`, `/stage`, `/host` — layar frontend
 - `GET /health` — status layanan dan mode
 - `GET /api/lobby` — `BASE_URL`, tautan `/play`, jumlah pemain, dan fase
-- `GET /qr.png` — QR dari `BASE_URL/play`
+- `POST /api/rooms` — mengembalikan kode undangan untuk arena aktif
+- `GET /api/rooms/:roomCode` — memvalidasi kode undangan dari perangkat peserta
+- `GET /qr.png` — QR dari `BASE_URL/play?room=<kode>`
 - WebSocket `/ws/play`, `/ws/stage`, `/ws/host?t=<HOST_TOKEN>` (alias kompatibilitas: `/play`, `/stage`, `/host`)
+
+Kode undangan yang sama dipakai seluruh peserta dan disimpan di `data/room-invite.json` agar tetap berlaku setelah backend restart. Backend saat ini menjalankan satu arena aktif; kode ini adalah tautan masuk, bukan pemisah beberapa room.
 
 Host tanpa token hanya menerima status dan tidak bisa mengirim perintah. Serangan dari kartu cepat bisa digunakan langsung; input prompt bebas perlu diaktifkan lewat tombol `Manual attacks` di panel host.
 
 ## Protokol singkat
 
-`/play` menerima `join {nickname}`, `rejoin {playerId}`, dan `attack {payload, manual?}`. Nickname mengikuti `^[a-zA-Z0-9_]{2,12}$`. Nama tabrakan diberi suffix. Batas awal: 40 pemain, 3 join/IP, 1 serangan aktif per pemain, antrean maksimum 12, dan cooldown 25 detik setelah hasil.
+`/play` menerima `join {nickname}`, `rejoin {playerId}`, dan `attack {payload, manual?}`. Nickname mengikuti `^[a-zA-Z0-9_]{2,12}$`. Nama tabrakan diberi suffix. Batas awal: 40 pemain, 3 join/IP, 1 serangan aktif per pemain, antrean maksimum 12, cooldown 5 detik setelah hasil, dan prompt manual maksimum 1.000 karakter.
 
 `/host` menerima `host_cmd {cmd, ...}`. Perintah yang tersedia: `ROUND1`, `VAULT_ON`, `JUDGE_CLAIM_A`, `JUDGE_CLAIM_B`, `SIM_CROWD`, `SAMPLE_ATTACK`, `PANIC_BLUR`, `REFILL`, `REHEARSAL`, `MANUAL_ATTACKS`, dan `GOTO:<phase>`. `REFILL` hanya memberi pengingat; backend tidak mengirim dana untuk refill.
 
@@ -51,9 +55,11 @@ Siapkan `claims.json` berdasarkan `claims.example.json`. Setiap klaim harus puny
 
 ## Aktifkan koneksi live Monad
 
-Mode live membutuhkan kontrak AegisVault yang sudah di-deploy ke Monad Testnet (chain ID 10143), alamat kontrak, 1+ Worker, tiga Guardian, Executor, RPC yang dapat diakses, dan saldo MON yang memadai. Isi nilai tersebut di `.env`, lalu atur `REHEARSAL=false`. Backend memakai batas gas tetap dan tidak memanggil `eth_estimateGas`.
+Kontrak AegisVault dan suite Foundry ada di `contracts/`. Jalankan tes dengan `forge test --root contracts`. Untuk deployment ke Monad Testnet, siapkan variabel `DEPLOYER_PRIVATE_KEY`, `WORKER_1_ADDRESS`, `GUARDIAN_1_ADDRESS`, `GUARDIAN_2_ADDRESS`, `GUARDIAN_3_ADDRESS`, `GUARDIAN_MASK`, dan `AEGIS_EXPIRY_BLOCKS`, lalu jalankan `forge script --root contracts script/Deploy.s.sol:DeployAegisVault --rpc-url https://testnet-rpc.monad.xyz --broadcast`. `GUARDIAN_MASK=1` hanya membutuhkan Guardian 1; mask `7` membutuhkan ketiganya. Simpan private key hanya di environment lokal yang aman.
 
-Backend mengharapkan ABI/event yang ditulis di PRD: `proposeAction`, `submitDecision`, `executeAction`, `payees`, `actions`, `ActionProposed`, `Layer0Rejected`, `GuardianDecision`, dan `ActionResolved`. Sumber kontrak/deployment belum ada di folder proyek ini; backend tidak membuat atau men-deploy kontrak secara otomatis.
+Setelah deployment, konfigurasi alamat kontrak, 1+ Worker, Guardian sesuai mask, Executor, RPC yang dapat diakses, dan saldo MON yang memadai di `.env`, lalu atur `REHEARSAL=false`. Backend memakai batas gas tetap dan tidak memanggil `eth_estimateGas`. Kontrak tidak di-deploy otomatis.
+
+Backend mengharapkan ABI/event yang disediakan kontrak: `proposeAction`, `submitDecision`, `executeAction`, `payees`, `actions`, `ActionProposed`, `Layer0Rejected`, `GuardianDecision`, dan `ActionResolved`. Alamat yang sudah dideploy harus diisi manual; backend tidak men-deploy kontrak secara otomatis.
 
 `RAW_DEMO_RECIPIENT` wajib diisi dengan alamat tim/testnet sebelum ronde tanpa Vault dapat mengirim transaksi; backend tidak pernah memakai alamat hasil LLM sebagai tujuan transfer langsung. Transfer langsung dibatasi maksimum 5 MON dan memakai `RAW_DEMO_AMOUNT`. `DEMO_RECIPIENT`/`DEMO_AMOUNT` dipakai tombol klaim juri.
 
@@ -67,4 +73,4 @@ Untuk tunnel, set `BASE_URL` ke URL HTTPS dari `cloudflared` dan `TRUST_PROXY=tr
 npm run typecheck
 ```
 
-Durasi, biaya gas, p50/p95, dan laju layanan belum merupakan klaim hasil ukur. Ukur spike sesuai PRD sebelum menampilkan angka performa ke peserta/juri.
+Podium menghitung median waktu dari serangan masuk hingga hasil backend selama proses server aktif. Ini metrik end-to-end aplikasi, bukan finality chain. Durasi, biaya gas, p50/p95 chain, dan laju layanan tetap harus diukur melalui spike sesuai PRD sebelum menampilkan klaim performa ke peserta/juri.

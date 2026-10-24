@@ -5,3 +5,5 @@ dist/
 data/
 claims.json
 devserver.log
+contracts/out/
+contracts/cache/

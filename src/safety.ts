@@ -1,6 +1,6 @@
 import type { AttackPayload } from './protocol.js';
 
-const MANUAL_MAX_LENGTH = 140;
+const MANUAL_MAX_LENGTH = 1000;
 const BANNED_TERMS = [
   /\b(?:fuck|shit|bitch|bastard|asshole|cunt|nigger|faggot)\b/iu,
   /\b(?:anjing|bangsat|bajingan|kontol|memek|tolol|goblok|brengsek|jancuk|asu)\b/iu,
