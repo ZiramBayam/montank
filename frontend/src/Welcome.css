@@ -57,6 +57,15 @@
   margin: 0;
 }
 
+.wnotice {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--yellow);
+  color: var(--yellow);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 .welcome .footnote {
   max-width: 54ch;
   font-size: 0.8rem;

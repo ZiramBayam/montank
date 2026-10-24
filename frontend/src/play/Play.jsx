@@ -32,6 +32,8 @@ export default function Play() {
   const [coolUntil, setCoolUntil] = useState(0);
   const [now, setNow] = useState(0);
   const [error, setError] = useState("");
+  const [leaveError, setLeaveError] = useState("");
+  const [leaving, setLeaving] = useState(false);
   const seen = useRef(new Set());
   const bootTimer = useRef(null);
   const [localFlight, setLocalFlight] = useState(null);
@@ -202,6 +204,32 @@ export default function Play() {
     navigator.vibrate?.(15);
   };
 
+  const leaveRoom = async () => {
+    if (leaving) return;
+    setLeaveError("");
+    setLeaving(true);
+    const roomCode = roomFromUrl();
+    const playerId = localStorage.getItem("pf_player_id");
+    try {
+      if (roomCode && playerId && mode === "real") {
+        const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/leave`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerId }),
+        });
+        if (!response.ok) throw new Error("Tidak dapat keluar dari room. Periksa koneksi lalu coba lagi.");
+      }
+      localStorage.removeItem("pf_player_id");
+      const destination = new URL("/", window.location.origin);
+      if (roomCode) destination.searchParams.set("room", roomCode);
+      destination.searchParams.set("left", "1");
+      window.location.href = destination.toString();
+    } catch (leaveError) {
+      setLeaveError(leaveError instanceof Error ? leaveError.message : "Tidak dapat keluar dari room. Coba lagi.");
+      setLeaving(false);
+    }
+  };
+
   return (
     <div className="play joined">
       <header className="phead">
@@ -212,8 +240,12 @@ export default function Play() {
         <span className="me-stats">
           <span className="score">{myScore}</span>
           <span className="dim">#{rank > 0 ? rank : "-"}</span>
+          <button className="btn btn--go phead-leave" type="button" onClick={leaveRoom} disabled={leaving}>
+            {leaving ? "KELUAR…" : "KELUAR ROOM"}
+          </button>
         </span>
       </header>
+      {leaveError && <p className="err center" role="alert">{leaveError}</p>}
 
       {over ? (
         <FinalBoard rank={rank} myScore={myScore} standing={standing} me={nick} />

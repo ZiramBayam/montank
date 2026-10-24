@@ -6,8 +6,11 @@ import { isRoomCode } from "./state/room.js";
 import "./Welcome.css";
 
 export default function Welcome() {
-  const [joinInput, setJoinInput] = useState("");
-  const [findOpen, setFindOpen] = useState(false);
+  const params = new URLSearchParams(window.location.search);
+  const invitedRoom = params.get("room") || "";
+  const leftRoom = params.get("left") === "1";
+  const [joinInput, setJoinInput] = useState(() => invitedRoom.toUpperCase());
+  const [findOpen, setFindOpen] = useState(() => Boolean(invitedRoom));
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -69,6 +72,7 @@ export default function Welcome() {
       </header>
 
       <section className="wselect card">
+        {leftRoom && <p className="wnotice" role="status">Kamu sudah keluar dari room{invitedRoom ? ` ${invitedRoom}` : ""}. Masukkan kembali kode undangan untuk bergabung lagi.</p>}
         <button className="btn btn--primary big" onClick={create} disabled={busy}>
           CREATE ROOM
         </button>

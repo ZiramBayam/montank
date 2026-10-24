@@ -602,6 +602,25 @@ app.get('/api/rooms/:roomCode', async (request) => {
   const { roomCode } = request.params as { roomCode: string };
   return { valid: roomCode.toUpperCase() === activeRoomCode };
 });
+app.post('/api/rooms/:roomCode/leave', async (request, reply) => {
+  const { roomCode } = request.params as { roomCode: string };
+  const body = request.body as { playerId?: unknown } | undefined;
+  if (roomCode.toUpperCase() !== activeRoomCode) return reply.code(404).send({ error: 'ROOM_NOT_FOUND' });
+  if (typeof body?.playerId !== 'string' || body.playerId.length > 64) {
+    return reply.code(400).send({ error: 'INVALID_PLAYER_ID' });
+  }
+
+  const player = room.removePlayer(body.playerId);
+  if (!player) return reply.code(404).send({ error: 'PLAYER_NOT_FOUND' });
+  for (const client of clients) {
+    if (client.playerId === player.playerId) delete client.playerId;
+  }
+  broadcast('all', 'player_left', { nickname: player.nickname, count: room.players.size });
+  sendScoreboards();
+  sendQueueUpdates();
+  broadcast('host', 'host_status', hostStatus());
+  return { ok: true, count: room.players.size };
+});
 app.get('/qr.png', async (request, reply) => {
   const png = await QRCode.toBuffer(`${publicBaseUrl(request)}/play?room=${activeRoomCode}`, { width: 480, margin: 2, errorCorrectionLevel: 'M' });
   return reply.type('image/png').send(png);

@@ -78,6 +78,27 @@ export class Room {
     if (player) player.disconnectedAt = Date.now();
   }
 
+  removePlayer(playerId: string): Player | undefined {
+    const player = this.players.get(playerId);
+    if (!player) return undefined;
+
+    this.players.delete(playerId);
+    this.nicknames.delete(player.nickname.toLowerCase());
+    const joins = this.joinsByIp.get(player.ip) ?? 0;
+    if (joins <= 1) this.joinsByIp.delete(player.ip);
+    else this.joinsByIp.set(player.ip, joins - 1);
+
+    for (let index = this.queue.length - 1; index >= 0; index--) {
+      const attack = this.queue[index]!;
+      if (attack.playerId !== playerId) continue;
+      this.queue.splice(index, 1);
+      this.attacks.delete(attack.attackId);
+    }
+    this.globalQueueEpoch++;
+    this.schedulePersist();
+    return player;
+  }
+
   uniqueNickname(nickname: string): boolean {
     return this.nicknames.has(nickname.toLowerCase());
   }

@@ -172,6 +172,11 @@ export function BusProvider({ children, role: appRole }) {
         else if (m.type === "room_rejected") push((prev) => ({ ...prev, joinError: "ROOM_NOT_FOUND" }));
         else if (m.type === "scoreboard") push((prev) => ({ ...prev, players: mergePlayers(prev.players, m.top), myScore: m.score, myRank: m.rank }));
         else if (m.type === "player_joined") push((prev) => ({ ...prev, playerCount: m.count, players: m.nickname ? { ...prev.players, [m.nickname]: prev.players[m.nickname] ?? { score: 0 } } : prev.players }));
+        else if (m.type === "player_left") push((prev) => {
+          const players = { ...prev.players };
+          if (m.nickname) delete players[m.nickname];
+          return { ...prev, playerCount: m.count ?? Math.max(0, (prev.playerCount ?? 0) - 1), players };
+        });
         else if (m.type === "queue") push((prev) => ({ ...prev, queueWaiting: m.count ?? prev.queueWaiting }));
         else if (m.type === "queue_update" || m.type === "attack_ack") push((prev) => ({ ...prev, queuePosition: m.queuePos ?? prev.queuePosition, queueEtaMs: m.estMs ?? prev.queueEtaMs, activeAttackId: m.attackId ?? prev.activeAttackId }));
         else if (m.type === "killfeed") push((prev) => ({ ...prev, attacks: upsertAttack(prev.attacks, m.entry) }));
