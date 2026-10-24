@@ -19,9 +19,20 @@ const C = {
   y: "#FFD600", // yellow (koin/skor)
   r: "#FF3B30", // red (veto/jebol)
   g: "#00E676", // green (CLEAR)
-  b: "#2B3A67", // navy (seragam satpam)
+  b: "#2B3A67", // navy (seragam satpam & celana)
   s: "#8A8F98", // steel medium (bodi brankas)
   t: "#B9BEC7", // steel terang (sorot/rivet)
+  f: "#EFC29B", // kulit (avatar)
+  h: "#4A2F1B", // rambut coklat tua
+  // 8 warna baju avatar player (hash nickname)
+  "0": "#FFD600",
+  "1": "#836EF9",
+  "2": "#00E676",
+  "3": "#FF3B30",
+  "4": "#3B82F6",
+  "5": "#FF9D2E",
+  "6": "#35C9D6",
+  "7": "#FF61D5",
 };
 
 function svg(cells) {
@@ -67,27 +78,61 @@ S.shield = svg([
   "......kk....",
 ]);
 
-/* == Mascot: Si Agen Bendahara (lugu), 10x16; mascotB = frame kedip == */
-const MASCOT_ROWS = [
-  "....kk....",
-  "...kyuk...",
-  "....kk....",
-  "..kkkkkk..",
-  ".kpnnnnpk.",
-  ".knnppnnk.",
-  ".knpknpnk.",
-  ".knnppnnk.",
-  ".knnkknnk.",
-  "..kkkkkk..",
-  ".kuuuyyuk.",
-  ".kppppppk.",
-  ".kppppppk.",
-  "..kk..kk..",
-  "..kk..kk..",
-  "..kk..kk..",
-];
-S.mascot = svg(MASCOT_ROWS);
-S.mascotB = svg(MASCOT_ROWS.map((r, i) => (i === 6 ? ".knkkkknk." : r)));
+/* == Mascot: Si Agen Bendahara (manusia 8-bit: rambut, wajah, baju, tangan, celana, sepatu), 12x16 ==
+   mascot   = baju kuning (brand), idle
+   mascotB  = mata ketutup (kedip)
+   mascotC  = torso naik 1px (bertindik bernafas)
+   mascotV0..7 = baju warna player (hash nickname), + suffix B/C untuk kedip/bernapas */
+function mascotSprite(shirt, { closed = false, breath = false } = {}) {
+  const W = 12, H = 16;
+  const G = Array.from({ length: H }, () => Array(W).fill(null));
+  const R = (x0, y0, x1, y1, c) => {
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (G[y]?.[x] !== undefined) G[y][x] = c;
+  };
+  const P = (x, y, c) => { if (G[y]?.[x] !== undefined) G[y][x] = c; };
+
+  // rambut atas kepala
+  R(2, 0, 9, 2, "h");
+  // wajah
+  R(2, 3, 9, 6, "f");
+  if (closed) {
+    P(4, 4, "k"); P(5, 4, "k"); P(7, 4, "k"); P(8, 4, "k"); // mata ketutup: garis
+  } else {
+    P(4, 4, "k"); P(7, 4, "k"); // mata terbuka
+  }
+  P(6, 6, "k"); P(7, 6, "k"); // mulut kecil
+  // leher — hilang saat napas (baju naik)
+  if (!breath) R(5, 7, 6, 7, "f");
+  // torso baju; saat napas, dada naik 1px menutup leher
+  R(2, breath ? 7 : 8, 9, 11, shirt);
+  // lengan baju di sisi + tangan kulit
+  R(1, breath ? 8 : 9, 1, 11, shirt);
+  R(10, breath ? 8 : 9, 10, 11, shirt);
+  P(1, 12, "f"); P(10, 12, "f");
+  // celana + kaki + sepatu
+  R(3, 12, 8, 13, "b");
+  R(3, 14, 4, 14, "b"); R(7, 14, 8, 14, "b");
+  R(3, 15, 4, 15, "k"); R(7, 15, 8, 15, "k");
+
+  // garis tepi otomatis (keliling 1px, 4 arah)
+  const edge = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (G[y][x]) continue;
+    if (G[y]?.[x - 1] || G[y]?.[x + 1] || G[y - 1]?.[x] || G[y + 1]?.[x]) edge.push([x, y]);
+  }
+  for (const [x, y] of edge) G[y][x] = "k";
+  return svg(G.map((row) => row.map((c) => c ?? ".").join("")));
+}
+
+S.mascot = mascotSprite("y");
+S.mascotB = mascotSprite("y", { closed: true });
+S.mascotC = mascotSprite("y", { breath: true });
+for (let i = 0; i < 8; i++) {
+  const key = String(i);
+  S[`mascotV${i}`] = mascotSprite(key);
+  S[`mascotV${i}B`] = mascotSprite(key, { closed: true });
+  S[`mascotV${i}C`] = mascotSprite(key, { breath: true });
+}
 
 /* == Penjaga satpam 8-bit, 17x22; bentuk sama, chip dada beda warna; closed = frame kedip == */
 function guardSprite(emblem, closed = false) {

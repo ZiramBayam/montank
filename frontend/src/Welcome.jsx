@@ -33,8 +33,11 @@ export default function Welcome() {
       <header className="brand">
         <span className="wmasc">
           <Sprite name="mascot" size={34} />
-          <span className="mkover flick">
+          <span className="mkover flick" style={{ animationDelay: "1.2s" }}>
             <Sprite name="mascotB" size={34} />
+          </span>
+          <span className="mkover bff" style={{ animationDelay: "0.6s" }}>
+            <Sprite name="mascotC" size={34} />
           </span>
         </span>
         <h1>MONTANK</h1>

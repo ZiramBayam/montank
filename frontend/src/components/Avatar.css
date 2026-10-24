@@ -1,0 +1,2 @@
+.avatar { position: relative; display: inline-flex; }
+.mkover { position: absolute; inset: 0; opacity: 0; pointer-events: none; }

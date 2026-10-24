@@ -3,6 +3,7 @@ import { useBus } from "../state/RoomCtx.js";
 import { PHASE } from "../state/phases.js";
 import { ROWS, composeAttack, TIERS, QUEUE, HONEST } from "../data/deck.js";
 import Sprite from "../components/Sprite.jsx";
+import Avatar from "../components/Avatar.jsx";
 import QRCode from "qrcode";
 import { play, unlockAudio, probeFiles } from "../state/sfx.js";
 import { roomFromUrl } from "../state/room.js";
@@ -507,6 +508,7 @@ function WaitingRoom({ nick, playerCount, others }) {
         <div className="wlist">
           {others.map((r, i) => (
             <div className="wlrow" key={r.n}>
+              <Avatar nick={r.n} size={18} idx={i} />
               <span className="dim t-num">{i + 1}.</span>
               <span>{r.n}</span>
               {r.n === nick && <span className="badge">YOU</span>}
@@ -517,8 +519,11 @@ function WaitingRoom({ nick, playerCount, others }) {
       )}
       <span className="wrmasc idle-bob">
         <Sprite name="mascot" size={30} />
-        <span className="mkover flick">
+        <span className="mkover flick" style={{ animationDelay: "0.8s" }}>
           <Sprite name="mascotB" size={30} />
+        </span>
+        <span className="mkover bff" style={{ animationDelay: "1.9s" }}>
+          <Sprite name="mascotC" size={30} />
         </span>
       </span>
       <p className="astatus dim blink-idle">WAITING FOR THE HOST…</p>
