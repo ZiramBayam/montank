@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: montank
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm ci --prefix frontend && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 24.21.0
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: TRUST_PROXY
+        value: "true"
+      - key: HOST_TOKEN
+        generateValue: true
+      - key: REHEARSAL
+        value: "true"
+      - key: REHEARSAL_VICTIM_TRICKED
+        value: "true"
+      - key: MONAD_CHAIN_ID
+        value: "10143"
+      - key: MONAD_RPC_HTTP
+        value: https://testnet-rpc.monad.xyz
+      - key: MONAD_WS_PRIMARY
+        value: wss://testnet-rpc.monad.xyz
+      - key: MONAD_WS_BACKUP
+        value: wss://rpc-testnet.monadinfra.com
+      - key: AEGIS_VAULT_ADDRESS
+        value: 0xf633ae60713aEfd3983e2d17c8163a7d7328497a
+      - key: GUARDIAN_MASK
+        value: "7"
+      - key: CLAIMS_FILE
+        value: ./claims.render.json
+      - key: DEMO_RECIPIENT
+        value: 0x7Aa7a7881E22b8A91c7cE48ACF057Ea625A0B36A
+      - key: DEMO_AMOUNT
+        value: "0.1"
+      - key: VENDOR_RECIPIENT
+        value: 0x61E1D5A52Aa8e18F5fd9cD3B6C9E34882d20a5d1

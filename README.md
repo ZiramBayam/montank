@@ -72,6 +72,14 @@ Backend mengharapkan ABI/event yang disediakan kontrak: `proposeAction`, `submit
 
 Untuk tunnel, set `BASE_URL` ke URL HTTPS dari `cloudflared` dan `TRUST_PROXY=true` hanya jika server hanya dapat dijangkau melalui proxy tepercaya. URL QR dibuat ulang dari konfigurasi saat server mulai.
 
+## Deploy demo gratis ke Render
+
+`render.yaml` membuat satu web service Render Free untuk frontend, API, dan WebSocket dari origin yang sama. Di Render Dashboard pilih **New → Blueprint**, hubungkan repo dan branch yang berisi file ini, lalu terapkan Blueprint. Build, start, dan health-check sudah ditentukan di file tersebut. Blueprint memulai dengan `REHEARSAL=true`; buka `/stage` dan `/host?t=<HOST_TOKEN>` setelah deploy. `HOST_TOKEN` dibuat oleh Render dan dapat dilihat di Environment service.
+
+Untuk mengirim transaksi Monad Testnet, isi Environment service dengan `WORKER_PRIVATE_KEYS`, `GUARDIAN_1_PRIVATE_KEY`, `GUARDIAN_2_PRIVATE_KEY`, `GUARDIAN_3_PRIVATE_KEY`, dan `EXECUTOR_PRIVATE_KEY` dari konfigurasi lokal yang aman, lalu ubah `REHEARSAL=false` dan redeploy. **Jangan masukkan `DEPLOYER_PRIVATE_KEY` ke backend.** Blueprint memakai ledger demo `claims.render.json` dan alamat yang sudah didaftarkan di testnet; jika klaim sudah dipakai atau kedaluwarsa, daftarkan klaim baru dan samakan ledger serta `DEMO_RECIPIENT`/`DEMO_AMOUNT`.
+
+Render Free menidurkan service setelah 15 menit tanpa trafik dan filesystem-nya tidak persisten. Panaskan `/health` sebelum demo; setelah service bangun ulang, room dapat berganti. Perubahan status ledger lokal dapat hilang saat service tidur atau restart, sedangkan kontrak tetap mencegah klaim on-chain yang sudah dipakai dibayar lagi.
+
 ## Pemeriksaan
 
 ```powershell
