@@ -16,8 +16,7 @@
   align-items: center;
   gap: 6px;
 }
-.welcome .brand h1 { color: var(--yellow); margin: 4px 0 0; display: inline-flex; align-items: center; gap: 10px; }
-.wlogo { display: inline-flex; image-rendering: pixelated; }
+.welcome .brand h1 { color: var(--yellow); margin: 4px 0 0; }
 .welcome .brand .dim { max-width: 46ch; margin: 8px 0 0; line-height: 1.7; }
 
 /* mascot + overlay frame kedip (pola sama seperti banner stage) */
