@@ -20,8 +20,8 @@
   font-family: var(--f-display);
 }
 .phead .me { display: flex; align-items: center; gap: 8px; }
-/* nick selalu dalam huruf persis seperti input user (Pixelify punya lowercase asli) */
-.phead .me b { color: var(--yellow); font-size: 0.95rem; font-family: var(--f-pixel); }
+/* nick di phead memakai Silkscreen (font blok 8-bit); Silkscreen hanya punya bentuk kapital */
+.phead .me b { color: var(--yellow); font-size: 0.8rem; font-family: var(--f-display); letter-spacing: 0.04em; }
 .me-stats { display: flex; gap: 14px; align-items: baseline; }
 .ptimer {
   font-family: var(--f-pixel);
