@@ -32,6 +32,12 @@ export interface VoteResult {
   ms: number;
 }
 
+export interface PromptQuality {
+  score: number;
+  bonus: number;
+  feedback: string[];
+}
+
 export interface AttackRecord {
   attackId: string;
   roomCode?: string;
@@ -44,6 +50,7 @@ export interface AttackRecord {
   status: 'QUEUED' | 'PROCESSING' | 'PROPOSED' | 'RESOLVED';
   actionId?: `0x${string}`;
   victim?: VictimResult;
+  promptQuality?: PromptQuality;
   points?: number;
   arrivalOrder?: number;
 }

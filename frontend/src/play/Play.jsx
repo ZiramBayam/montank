@@ -14,6 +14,8 @@ const TIER_SFX = { ATTEMPT: "t10", LAYER0: "t50", VICTIM: "t100", G1: "t250", G2
 const BOLT_MS = 380;
 const GAP_MS = 420;
 const BOOT_MS = 900;
+const RAW_ROUND_MS = 60_000;
+const SHIELD_ROUND_MS = 120_000;
 const BOOT_LINES = ["CONNECTING TO ARENA…", "SYNC LEDGER…", "ARMING PROMPT ENGINE…"];
 const GUARD_FALLBACK = [
   { clear: false, ms: 0 },
@@ -188,6 +190,10 @@ export default function Play() {
   const coolLeft = cooling ? Math.ceil((coolUntil - now) / 1000) : QUEUE.COOLDOWN_S;
   const queueFull = state.queueWaiting >= QUEUE.MAX;
   const attackActive = inFlight || Boolean(state.activeAttackId);
+  const phaseDuration = raw ? RAW_ROUND_MS : SHIELD_ROUND_MS;
+  const phaseRemainingMs = Math.max(0, state.startedAt + phaseDuration - now);
+  const finishRemainingMs = raw ? phaseRemainingMs + SHIELD_ROUND_MS : phaseRemainingMs;
+  const transactionUrl = state.attacks.find((attack) => attack.txUrl)?.txUrl ?? state.breachRaw?.txUrl ?? null;
 
   const send = () => {
     const text = draft.trim();
@@ -262,22 +268,24 @@ export default function Play() {
           <b>{nick}</b>
         </span>
         <span className="me-stats">
-          <PhaseTimer endsAt={state.phaseEndsAt} phase={state.phase} />
           <span className="score">{myScore}</span>
           <span className="dim">#{rank > 0 ? rank : "-"}</span>
-          <button className="btn btn--go phead-leave" type="button" onClick={leaveRoom} disabled={leaving}>
-            {leaving ? "KELUAR…" : "KELUAR ROOM"}
-          </button>
+          {!over && (
+            <button className="btn btn--go phead-leave" type="button" onClick={leaveRoom} disabled={leaving}>
+              {leaving ? "KELUAR…" : "KELUAR ROOM"}
+            </button>
+          )}
         </span>
       </header>
       {leaveError && <p className="err center" role="alert">{leaveError}</p>}
 
       {over ? (
-        <FinalBoard rank={rank} myScore={myScore} standing={standing} me={nick} />
+        <FinalBoard rank={rank} myScore={myScore} me={nick} txUrl={transactionUrl} rehearsal={state.virtual} onLeaveRoom={leaveRoom} leaving={leaving} />
       ) : lobby ? (
         <WaitingRoom nick={nick} playerCount={playerCount} others={standing} ownerToken={ownerToken} canStart={Boolean(state.playerId)} onStart={startGame} starting={starting} startError={startError} roundStartsAt={state.roundStartsAt} />
       ) : (
         <>
+          <GameTimeline phase={state.phase} phaseRemainingMs={phaseRemainingMs} finishRemainingMs={finishRemainingMs} />
           {/* 1 Leaderboard */}
           <section className="iboard card">
             <h2 className="purple">Scoreboard</h2>
@@ -302,6 +310,13 @@ export default function Play() {
             {myHistory.map((a) => (
               <div className="hrow" key={a.id}>
                 <span className="htx">{state.panic ? HONEST.SENSOR : a.text}</span>
+                {a.promptQuality && (
+                  <div className="quality-result">
+                    <b>Kualitas prompt {a.promptQuality.score}/100</b>
+                    <span>Bonus +{a.promptQuality.bonus} poin</span>
+                    <small>{a.promptQuality.feedback.join(" ")}</small>
+                  </div>
+                )}
                 <span className="hmeta">
                   {a.labels.map((l) => (
                     <span className="badge" key={l}>[{l}]</span>
@@ -363,7 +378,7 @@ export default function Play() {
               <span className="dim t-num">Queue {state.queueWaiting}/{QUEUE.MAX}</span>
             </div>
             {state.queuePosition != null && <p className="dim">Masuk antrean #{state.queuePosition}{state.queueEtaMs ? ` · estimasi ${Math.ceil(state.queueEtaMs / 1000)} dtk` : ""}</p>}
-            <small className="dim">Spectator text passes the backend profanity filter before it appears on /stage (PRD 8).</small>
+            <small className="dim">Kualitas dinilai dari kejelasan aksi, konteks, detail konkret, alur, dan keringkasan. Bonus kualitas: hingga 200 poin per serangan.</small>
             {mode !== "real" && <p className="err" role="status">{mode === "connecting" ? "Menghubungkan ke server…" : "Koneksi terputus. Menghubungkan ulang…"}</p>}
             <button className="btn btn--stop big sendbtn" onClick={send} disabled={mode !== "real" || attackActive || cooling || queueFull}>
               {mode !== "real" ? (mode === "connecting" ? "MENGHUBUNGKAN…" : "MENYAMBUNG ULANG…") : queueFull ? "Queue full" : attackActive ? (state.queuePosition ? `Queue #${state.queuePosition}` : "Attack in progress…") : cooling ? `Cooldown ${coolLeft}s` : "ATTACK"}
@@ -378,22 +393,6 @@ export default function Play() {
 }
 
 /* ===== arena ===== */
-/* Timer mundur sisa fase round (server-sourced tMsLeft via phaseEndsAt) */
-const ROUND_PHASES = new Set(["ROUND_1_RAW", "ROUND_2_SHIELD"]);
-function PhaseTimer({ endsAt, phase }) {
-  const [, sweep] = useState(0);
-  const live = endsAt != null && ROUND_PHASES.has(phase);
-  useEffect(() => {
-    if (!live) return;
-    const id = setInterval(() => sweep((n) => n + 1), 250);
-    return () => clearInterval(id);
-  }, [live, endsAt]);
-  if (!live) return null;
-  const ms = Math.max(0, endsAt - Date.now());
-  if (ms <= 0) return null;
-  return <b className={`ptimer ${ms < 10_000 ? "ptimer--hot" : ""}`}>{Math.ceil(ms / 1000)}s</b>;
-}
-
 function Arena({ rawPhase, flight, now }) {
   const el = flight ? now - flight.startedAt : 0;
   const hits = flight ? flight.guards.map((_, i) => BOLT_MS + i * GAP_MS) : [];
@@ -503,8 +502,59 @@ function StatusLine({ stage, outcome }) {
   return <p className="astatus dim blink-idle">ATTACK TO SCORE</p>;
 }
 
-function FinalBoard({ rank, myScore, standing, me }) {
-  const found = standing.some((r) => r.n === me) ? rank : 0;
+function formatRemaining(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function GameTimeline({ phase, phaseRemainingMs, finishRemainingMs }) {
+  const isRaw = phase === PHASE.RAW;
+  return (
+    <section className="game-timeline card" aria-label="Waktu permainan">
+      <div className="timeline-item">
+        <span className="dim">{isRaw ? "Ronde berikutnya · Ronde 2" : "Ronde berikutnya"}</span>
+        <b>{isRaw ? formatRemaining(phaseRemainingMs) : "Ronde terakhir"}</b>
+      </div>
+      <div className="timeline-item">
+        <span className="dim">Permainan selesai dalam</span>
+        <b>{formatRemaining(finishRemainingMs)}</b>
+      </div>
+    </section>
+  );
+}
+
+function FinalBoard({ rank, myScore, me, txUrl, rehearsal, onLeaveRoom, leaving }) {
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboard, setLeaderboard] = useState(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState("");
+  const found = rank > 0 ? rank : 0;
+
+  const toggleLeaderboard = async () => {
+    if (showLeaderboard) {
+      setShowLeaderboard(false);
+      return;
+    }
+    setShowLeaderboard(true);
+    setLeaderboardError("");
+    if (leaderboard !== null) return;
+
+    setLeaderboardLoading(true);
+    try {
+      const roomCode = roomFromUrl();
+      const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/leaderboard`);
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(result.standings)) throw new Error("Detail leaderboard tidak dapat dimuat.");
+      setLeaderboard(result.standings);
+    } catch (error) {
+      setLeaderboardError(error instanceof Error ? error.message : "Detail leaderboard tidak dapat dimuat.");
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  };
+
   return (
     <section className="card final">
       <h1>Finished</h1>
@@ -515,9 +565,37 @@ function FinalBoard({ rank, myScore, standing, me }) {
         Final score: <b className="score">{myScore}</b>
       </p>
       <p className="dim">Mau main lagi? Tetap di halaman ini. Host akan membuka lobby baru dan skor ronde berikutnya mulai dari nol.</p>
-      <a className="txlink" href="#" onClick={(e) => e.preventDefault()}>
-        Your transaction on MonadScan (sent on a real run) ↗
-      </a>
+      <div className="final-actions">
+        <button className="btn btn--coin big" type="button" onClick={() => void toggleLeaderboard()} aria-expanded={showLeaderboard}>
+          {leaderboardLoading ? "MEMUAT LEADERBOARD…" : showLeaderboard ? "SEMBUNYIKAN LEADERBOARD" : "LIHAT DETAIL LEADERBOARD"}
+        </button>
+        <button className="btn btn--go big" type="button" onClick={onLeaveRoom} disabled={leaving}>
+          {leaving ? "KELUAR ROOM…" : "KEMBALI KE HALAMAN AWAL"}
+        </button>
+      </div>
+      {leaderboardError && <p className="err" role="alert">{leaderboardError}</p>}
+      {showLeaderboard && leaderboardLoading && <p className="dim center" role="status">Memuat semua peringkat…</p>}
+      {showLeaderboard && leaderboard && (
+        <section className="final-leaderboard" aria-label="Detail leaderboard">
+          <h2 className="purple">LEADERBOARD DETAIL</h2>
+          {leaderboard.length === 0 ? <p className="dim center">Belum ada pemain di leaderboard.</p> : leaderboard.map((player) => (
+            <div className={`final-leaderboard-row ${player.nickname === me ? "is-me" : ""}`} key={player.nickname}>
+              <span className="dim t-num">#{player.rank}</span>
+              <b>{player.nickname}</b>
+              <span className="score">{player.score}</span>
+            </div>
+          ))}
+        </section>
+      )}
+      {txUrl ? (
+        <a className="txlink" href={txUrl} target="_blank" rel="noreferrer">
+          View transaction on MonadScan ↗
+        </a>
+      ) : (
+        <p className="dim" role="status">
+          {rehearsal ? "Mode rehearsal: tidak ada transaksi on-chain yang dikirim." : "Tidak ada transaksi on-chain untuk sesi ini."}
+        </p>
+      )}
     </section>
   );
 }
