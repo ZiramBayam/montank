@@ -62,7 +62,12 @@ export default function Welcome() {
             <Sprite name="mascotC" size={34} />
           </span>
         </span>
-        <h1>MONTANK</h1>
+        <h1>
+          <span className="wlogo">
+            <Sprite name="logo" size={32} />
+          </span>
+          MONTANK
+        </h1>
         <p className="dim">
           Two-round red-team arena. Lure the Cashier Agent, then dodge the AegisVault guards — in 5 minutes.
         </p>
