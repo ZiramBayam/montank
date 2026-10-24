@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import QRCode from "qrcode";
 import { useBus } from "../state/RoomCtx.js";
+import { roomFromUrl } from "../state/room.js";
 import { PHASE, ROUND_MS } from "../state/phases.js";
 import { GUARDS, TIERS, HONEST, QUEUE } from "../data/deck.js";
 import Sprite from "../components/Sprite.jsx";
@@ -9,7 +11,9 @@ import "./Stage.css";
 export default function Stage() {
   const { state, api, mode } = useBus();
   const { phase } = state;
+  const roomCode = roomFromUrl();
   const [lobbyInfo, setLobbyInfo] = useState(null);
+  const [roomQr, setRoomQr] = useState(null);
   useEffect(() => {
     let active = true;
     fetch("/api/lobby").then((response) => response.ok ? response.json() : null)
@@ -17,6 +21,14 @@ export default function Stage() {
       .catch(() => {});
     return () => { active = false; };
   }, []);
+  useEffect(() => {
+    if (!roomCode || mode === "real") { setRoomQr(null); return undefined; }
+    let active = true;
+    QRCode.toDataURL(`${window.location.origin}/play?room=${roomCode}`, { width: 400, margin: 2 })
+      .then((dataUrl) => { if (active) setRoomQr(dataUrl); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [roomCode, mode]);
 
   // Panic Blur: hotkey Spacebar (PRD 8)
   useEffect(() => {
@@ -71,7 +83,7 @@ export default function Stage() {
   return (
     <div className="stage dither">
       <TopBar state={state} leftS={leftS} mode={mode} />
-      {phase === PHASE.LOBBY && <Lobby state={state} lobbyInfo={lobbyInfo} />}
+      {phase === PHASE.LOBBY && <Lobby state={state} lobbyInfo={lobbyInfo} qrOverride={roomQr} manualUrl={roomCode ? `${window.location.origin}/play?room=${roomCode}` : null} />}
       {phase === PHASE.RAW && <RawRound state={state} />}
       {phase === PHASE.SHIELD && <Shield state={state} focus={focus} api={api} />}
       {phase === PHASE.OVER && <Podium state={state} />}
@@ -122,7 +134,7 @@ function TopBar({ state, leftS, mode }) {
         The Cashier Agent is intentionally gullible.
       </span>
       <span className={`badge ${mode === "real" ? "" : "badge--sim"}`}>
-        {mode === "real" ? (state.virtual ? "REHEARSAL" : "LIVE") : mode === "connecting" ? "CONNECTING" : "OFFLINE"}
+        {mode === "real" ? (state.virtual ? "REHEARSAL" : "LIVE") : ["engine", "client"].includes(mode) ? "ROOM DEMO" : mode === "connecting" ? "CONNECTING" : "OFFLINE"}
       </span>
     </header>
   );
@@ -133,11 +145,11 @@ function Badge({ children, sim, warn }) {
 }
 
 /* ---------- Lobby: QR + nickname live ---------- */
-function Lobby({ state, lobbyInfo }) {
+function Lobby({ state, lobbyInfo, qrOverride, manualUrl }) {
   const joined = Object.keys(state.players);
   return (
     <div className="zone lobby">
-      <img src={lobbyInfo?.qrUrl || "/qr.png"} alt="QR to join from a phone" className="qr card card--lift" />
+      <img src={qrOverride || lobbyInfo?.qrUrl || "/qr.png"} alt="QR to join from a phone" className="qr card card--lift" />
       <div className="lobbyinfo">
         <h1>RAID THE CASHIER</h1>
         <ul className="rules">
@@ -150,7 +162,7 @@ function Lobby({ state, lobbyInfo }) {
           </li>
         </ul>
         <p className="dim blink-idle">ATTACK TO SCORE — ROOM IS OPEN</p>
-        <p className="dim">Open manually: <b>{lobbyInfo?.manualUrl || `${window.location.host}/play`}</b></p>
+        <p className="dim">Open manually: <b>{manualUrl || lobbyInfo?.manualUrl || `${window.location.origin}/play`}</b></p>
       </div>
       <div className="board card">
         <h2>Players joined ({state.playerCount ?? joined.length})</h2>

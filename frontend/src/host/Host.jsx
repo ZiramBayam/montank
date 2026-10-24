@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useBus } from "../state/RoomCtx.js";
 import { PHASE } from "../state/phases.js";
+import { roomFromUrl } from "../state/room.js";
 import { HONEST } from "../data/deck.js";
 import Sprite from "../components/Sprite.jsx";
 import { unlockAudio } from "../state/sfx.js";
@@ -15,7 +16,9 @@ const PHASES = [
 
 export default function Host() {
   const { state, api, mode } = useBus();
+  const room = roomFromUrl();
   const [log, setLog] = useState([]);
+  const readOnly = mode === "real" && state.hostAuthorized === false;
   useEffect(() => { unlockAudio(); }, []);
 
   const act = (fn, label) => {
@@ -31,20 +34,22 @@ export default function Host() {
         <Sprite name="shield" size={24} />
         <b>HOST PANEL</b>
         <span className={`badge ${mode === "real" ? "" : "badge--sim"}`}>
-          {mode === "real" ? (state.virtual ? "WS: REHEARSAL" : "WS: LIVE") : mode === "connecting" ? "CONNECTING" : "BACKEND OFFLINE"}
+          {mode === "real" ? (state.virtual ? "WS: REHEARSAL" : "WS: LIVE") : mode === "connecting" ? "CONNECTING" : room ? "ROOM DEMO (cross-tab)" : "BACKEND OFFLINE"}
         </span>
-        <a className="badge" href="/stage" target="_stage" rel="noreferrer">open /stage ↗</a>
-        <a className="badge" href="/play" target="_play" rel="noreferrer">open /play ↗</a>
+        {room && <b className="badge">ROOM {room}</b>}
+        <a className="badge" href={room ? `/stage?room=${room}` : "/stage"} target="_stage" rel="noreferrer">open /stage ↗</a>
+        <a className="badge" href={room ? `/play?room=${room}` : "/play"} target="_play" rel="noreferrer">open /play ↗</a>
       </header>
 
       <section className="card hzone">
-        <h2 className="purple">1 · Demo Phases (3-minute state machine)</h2>
+        <h2 className="purple">1 · Demo Phases (5-minute state machine)</h2>
         <div className="hgrid">
           {PHASES.map((p) => (
             <button
               key={p.key}
               className={`btn ${state.phase === p.key ? "btn--primary" : ""}`}
               onClick={() => act(api.host[p.api], `→ ${p.label}`)}
+              disabled={readOnly}
             >
               {p.label}
             </button>
@@ -58,22 +63,22 @@ export default function Host() {
       <section className="card hzone">
         <h2 className="purple">2 · Judge Tests &amp; Fallbacks</h2>
         <div className="hgrid">
-          <button className="btn btn--go" onClick={() => act(api.host.claimVendor, "jury: claim registered vendor")}>
+          <button className="btn btn--go" onClick={() => act(api.host.claimVendor, "jury: claim registered vendor")} disabled={readOnly}>
             Claim Registered Vendor (Path A)
           </button>
-          <button className="btn btn--go" onClick={() => act(api.host.claimVendorB, "jury: claim verified new vendor")}>
+          <button className="btn btn--go" onClick={() => act(api.host.claimVendorB, "jury: claim verified new vendor")} disabled={readOnly}>
             Claim Verified New Vendor (Path B)
           </button>
-          <button className="btn" onClick={() => act(api.host.teamAttack, "team example attack")}>
+          <button className="btn" onClick={() => act(api.host.teamAttack, "team example attack")} disabled={readOnly}>
             Team Example Attack
           </button>
-          <button className="btn btn--coin" onClick={() => act(api.host.crowd, "crowd simulation")}>
+          <button className="btn btn--coin" onClick={() => act(api.host.crowd, "crowd simulation")} disabled={readOnly}>
             Crowd Simulation
           </button>
-          <button className="btn btn--stop" onClick={() => act(api.panic, HONEST.SENSOR)}>
+          <button className="btn btn--stop" onClick={() => act(api.panic, HONEST.SENSOR)} disabled={readOnly}>
             Panic Blur [Spacebar]
           </button>
-          <button className={`btn ${state.manualAttacksEnabled ? "btn--primary" : ""}`} onClick={() => act(() => api.host.manualAttacks(!state.manualAttacksEnabled), `manual attacks ${state.manualAttacksEnabled ? "off" : "on"}`)}>
+          <button className={`btn ${state.manualAttacksEnabled ? "btn--primary" : ""}`} onClick={() => act(() => api.host.manualAttacks(!state.manualAttacksEnabled), `manual attacks ${state.manualAttacksEnabled ? "off" : "on"}`)} disabled={readOnly}>
             Manual attacks: {state.manualAttacksEnabled ? "ON" : "OFF"}
           </button>
         </div>

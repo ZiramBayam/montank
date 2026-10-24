@@ -129,7 +129,7 @@ export default function Play() {
               </span>
             ))}
             <div className="cd" aria-hidden="true"><i /></div>
-            {mode !== "real" && <p className="dim center">DEMO MODE — backend not connected</p>}
+            {mode !== "real" && <p className="dim center">{["engine", "client"].includes(mode) ? "ROOM DEMO — synced across tabs" : "DEMO MODE — backend not connected"}</p>}
           </div>
         </section>
       </div>
@@ -160,7 +160,7 @@ export default function Play() {
             Join
           </button>
           <p className="dim center">Nickname is saved on this device. No wallet connection.</p>
-          {mode !== "real" && <p className="dim center">{mode === "connecting" ? "Connecting to backend…" : "Backend disconnected"}</p>}
+          {mode !== "real" && <p className="dim center">{["engine", "client"].includes(mode) ? "ROOM DEMO — synced across tabs" : mode === "connecting" ? "Connecting to backend…" : "Backend disconnected"}</p>}
         </section>
       </div>
     );
