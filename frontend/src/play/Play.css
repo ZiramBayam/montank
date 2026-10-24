@@ -182,6 +182,15 @@
   box-shadow: 4px 4px 0 0 #000;
 }
 .htx { font-family: var(--f-score); font-size: 1.15rem; line-height: 1.3; word-break: break-word; }
+.quality-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  align-items: baseline;
+  color: var(--yellow);
+  font-size: 0.82rem;
+}
+.quality-result small { flex-basis: 100%; color: var(--paper-dim); line-height: 1.45; }
 .hmeta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .hmeta .score { margin-left: auto; }
 .mini { display: inline-flex; gap: 3px; }

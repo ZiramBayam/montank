@@ -10,7 +10,7 @@ import { config } from './config.js';
 import { ChainService } from './chain.js';
 import { runP3, runVictim, type P3Result } from './ai.js';
 import { GuardianService } from './guards.js';
-import { displayAttack, validNickname, validateAttack } from './safety.js';
+import { displayAttack, evaluatePromptQuality, validNickname, validateAttack } from './safety.js';
 import { Room } from './room.js';
 import { PRESET_CARDS, type AttackRecord, type Phase, type Player, type VoteResult } from './protocol.js';
 
@@ -288,13 +288,17 @@ function publicBaseUrl(request: FastifyRequest): string {
 
 function sendAttackResult(attack: AttackRecord, layer: 'VICTIM' | 'LAYER0' | 'GUARDIAN', verdict: string, points: number, breakdown: string[]): void {
   const arena = getArena(attack.roomCode) ?? defaultArena();
-  arena.room.finishAttack(attack, points);
+  const promptQuality = attack.promptQuality ?? evaluatePromptQuality(attack.text);
+  const totalPoints = points + promptQuality.bonus;
+  const resultBreakdown = [...breakdown, `Prompt quality ${promptQuality.score}/100: +${promptQuality.bonus}`];
+  arena.room.finishAttack(attack, totalPoints);
   const player = arena.room.players.get(attack.playerId);
   for (const client of clients) if (client.roomCode === arena.roomCode && client.channel === 'play' && client.playerId === attack.playerId) {
-    push(client, 'attack_result', { attackId: attack.attackId, layer, verdict, points, breakdown });
+    push(client, 'attack_result', { attackId: attack.attackId, layer, verdict, points: totalPoints, basePoints: points, promptQuality, breakdown: resultBreakdown });
     push(client, 'cooldown', { untilEpochSec: Math.ceil((player?.cooldownUntil ?? Date.now()) / 1000) });
   }
-  attack.points = points;
+  attack.promptQuality = promptQuality;
+  attack.points = totalPoints;
   if (!arena.countedResults.has(attack.attackId)) {
     arena.countedResults.add(attack.attackId);
     arena.resultLatenciesMs.push(Math.max(0, Date.now() - attack.createdAt));
@@ -307,7 +311,9 @@ function sendAttackResult(attack: AttackRecord, layer: 'VICTIM' | 'LAYER0' | 'GU
     nickname: attack.nickname,
     text: displayAttack(attack.text, arena.room.panicBlur),
     verdict,
-    points,
+    points: totalPoints,
+    basePoints: points,
+    promptQuality,
     amount: attack.victim?.amount,
     rehearsal: arena.room.rehearsal,
     simulated: attack.simulated,
@@ -321,7 +327,7 @@ function sendAttackResult(attack: AttackRecord, layer: 'VICTIM' | 'LAYER0' | 'GU
 function newAttack(roomCode: string, playerId: string, nickname: string, text: string, payload: AttackRecord['payload'], simulated = false): AttackRecord {
   return {
     attackId: randomUUID(), roomCode, playerId, nickname, text, payload, createdAt: Date.now(), simulated,
-    status: 'QUEUED',
+    status: 'QUEUED', promptQuality: evaluatePromptQuality(text),
   };
 }
 
@@ -339,7 +345,7 @@ function queueAttack(attack: AttackRecord): void {
   const entry = {
     attackId: attack.attackId, nickname: attack.nickname,
     text: displayAttack(attack.text, arena.room.panicBlur), verdict: 'QUEUED', simulated: attack.simulated,
-    rehearsal: arena.room.rehearsal,
+    rehearsal: arena.room.rehearsal, promptQuality: attack.promptQuality,
   };
   for (const client of clients) if (client.roomCode === arena.roomCode && client.channel === 'play' && client.playerId === attack.playerId) {
     push(client, 'killfeed', { entry });

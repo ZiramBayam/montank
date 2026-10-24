@@ -302,6 +302,13 @@ export default function Play() {
             {myHistory.map((a) => (
               <div className="hrow" key={a.id}>
                 <span className="htx">{state.panic ? HONEST.SENSOR : a.text}</span>
+                {a.promptQuality && (
+                  <div className="quality-result">
+                    <b>Kualitas prompt {a.promptQuality.score}/100</b>
+                    <span>Bonus +{a.promptQuality.bonus} poin</span>
+                    <small>{a.promptQuality.feedback.join(" ")}</small>
+                  </div>
+                )}
                 <span className="hmeta">
                   {a.labels.map((l) => (
                     <span className="badge" key={l}>[{l}]</span>
@@ -363,7 +370,7 @@ export default function Play() {
               <span className="dim t-num">Queue {state.queueWaiting}/{QUEUE.MAX}</span>
             </div>
             {state.queuePosition != null && <p className="dim">Masuk antrean #{state.queuePosition}{state.queueEtaMs ? ` · estimasi ${Math.ceil(state.queueEtaMs / 1000)} dtk` : ""}</p>}
-            <small className="dim">Spectator text passes the backend profanity filter before it appears on /stage (PRD 8).</small>
+            <small className="dim">Kualitas dinilai dari kejelasan aksi, konteks, detail konkret, alur, dan keringkasan. Bonus kualitas: hingga 200 poin per serangan.</small>
             {mode !== "real" && <p className="err" role="status">{mode === "connecting" ? "Menghubungkan ke server…" : "Koneksi terputus. Menghubungkan ulang…"}</p>}
             <button className="btn btn--stop big sendbtn" onClick={send} disabled={mode !== "real" || attackActive || cooling || queueFull}>
               {mode !== "real" ? (mode === "connecting" ? "MENGHUBUNGKAN…" : "MENYAMBUNG ULANG…") : queueFull ? "Queue full" : attackActive ? (state.queuePosition ? `Queue #${state.queuePosition}` : "Attack in progress…") : cooling ? `Cooldown ${coolLeft}s` : "ATTACK"}
