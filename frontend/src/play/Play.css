@@ -252,6 +252,27 @@
 
 /* ===== final ===== */
 .final { padding: 18px 16px; display: flex; flex-direction: column; gap: 8px; }
+.final-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.final-leaderboard {
+  max-height: 45vh;
+  overflow-y: auto;
+  border: var(--border);
+  background: var(--bg);
+  padding: 10px;
+}
+.final-leaderboard h2 { margin: 0 0 8px; font-size: 0.9rem; }
+.final-leaderboard-row {
+  display: grid;
+  grid-template-columns: 3.5ch minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.9rem;
+}
+.final-leaderboard-row:last-child { border-bottom: 0; }
+.final-leaderboard-row.is-me { background: rgba(131, 110, 249, 0.2); }
+.final-leaderboard-row b { overflow-wrap: anywhere; }
 .txlink {
   color: var(--yellow);
   font-family: var(--f-score);

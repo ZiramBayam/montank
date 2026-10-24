@@ -723,6 +723,14 @@ app.get('/api/rooms/:roomCode', async (request) => {
   const { roomCode } = request.params as { roomCode: string };
   return { valid: Boolean(getArena(roomCode)) };
 });
+app.get('/api/rooms/:roomCode/leaderboard', async (request, reply) => {
+  const { roomCode } = request.params as { roomCode: string };
+  const arena = getArena(roomCode);
+  if (!arena) return reply.code(404).send({ error: 'ROOM_NOT_FOUND' });
+  return {
+    standings: arena.room.scoreboard().map(({ nickname, score }, index) => ({ rank: index + 1, nickname, score })),
+  };
+});
 const ROOM_START_COUNTDOWN_MS = 3000;
 
 app.post('/api/rooms/:roomCode/start', async (request, reply) => {
