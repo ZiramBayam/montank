@@ -311,7 +311,6 @@ function mapServerState(server = {}, prev = initial()) {
   const phase = server.phase ?? prev.phase;
   const duration = DURATIONS[phase] ?? 60_000;
   return { phase, startedAt: Date.now() - Math.max(0, duration - (server.tMsLeft ?? duration)), vaultOn: !!server.vaultOn,
-    phaseEndsAt: typeof server.tMsLeft === "number" ? Date.now() + server.tMsLeft : null,
     gameStartedAt: server.gameStartedAt ?? null, gameEndedAt: server.gameEndedAt ?? null, gameElapsedMs: server.gameElapsedMs ?? 0,
     roundStartsAt: typeof server.roundStartsAt === "number" ? server.roundStartsAt : null,
     panic: !!server.panicBlur, virtual: !!server.rehearsal };
