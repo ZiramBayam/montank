@@ -1,4 +1,4 @@
-// Halaman pembuka untuk bergabung ke room menggunakan kode undangan.
+// Halaman pembuka dengan pilihan membuat room atau bergabung dengan kode undangan.
 import { useState } from "react";
 import Sprite from "./components/Sprite.jsx";
 import { isRoomCode } from "./state/room.js";
@@ -11,6 +11,28 @@ export default function Welcome() {
   const [joinInput, setJoinInput] = useState(() => invitedRoom.toUpperCase());
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState(() => invitedRoom || leftRoom ? "join" : "choices");
+
+  const createRoom = async () => {
+    setErr("");
+    setBusy(true);
+    try {
+      const response = await fetch("/api/rooms", { method: "POST" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.message || "Room tidak dapat dibuat. Coba lagi.");
+      if (!isRoomCode(result.roomCode)) throw new Error("Kode room dari server tidak valid.");
+      if (typeof result.ownerToken !== "string" || result.ownerToken.length < 32) {
+        throw new Error("Sesi pemilik room tidak dapat diamankan. Coba lagi.");
+      }
+      const destination = new URL("/play", window.location.origin);
+      destination.searchParams.set("room", result.roomCode);
+      destination.searchParams.set("owner", result.ownerToken);
+      window.location.href = destination.toString();
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : "Server room tidak dapat dijangkau. Coba lagi.");
+      setBusy(false);
+    }
+  };
 
   const goJoin = async () => {
     const code = joinInput.toUpperCase().trim();
@@ -59,22 +81,34 @@ export default function Welcome() {
 
       <section className="wselect card">
         {leftRoom && <p className="wnotice" role="status">Kamu sudah keluar dari room{invitedRoom ? ` ${invitedRoom}` : ""}. Masukkan kembali kode undangan untuk bergabung lagi.</p>}
-        <form className="wfind" onSubmit={(event) => { event.preventDefault(); void goJoin(); }}>
-          <label htmlFor="room-code">Kode undangan</label>
-          <input
-            id="room-code"
-            autoFocus
-            value={joinInput}
-            onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
-            placeholder="PF-XXXX"
-            maxLength={7}
-            autoCapitalize="characters"
-            autoComplete="off"
-          />
-          <button className="btn btn--coin big" type="submit" disabled={busy || !joinInput.trim()}>
-            {busy ? "MEMERIKSA…" : "GABUNG ROOM →"}
-          </button>
-        </form>
+        {view === "choices" ? (
+          <div className="wchoices">
+            <button className="btn btn--primary big" type="button" onClick={() => void createRoom()} disabled={busy}>
+              {busy ? "MEMBUAT ROOM…" : "CREATE ROOM"}
+            </button>
+            <button className="btn btn--go big" type="button" onClick={() => { setErr(""); setView("join"); }}>
+              JOIN ROOM
+            </button>
+          </div>
+        ) : (
+          <form className="wfind" onSubmit={(event) => { event.preventDefault(); void goJoin(); }}>
+            <label htmlFor="room-code">Kode undangan</label>
+            <input
+              id="room-code"
+              autoFocus
+              value={joinInput}
+              onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
+              placeholder="PF-XXXX"
+              maxLength={7}
+              autoCapitalize="characters"
+              autoComplete="off"
+            />
+            <button className="btn btn--coin big" type="submit" disabled={busy || !joinInput.trim()}>
+              {busy ? "MEMERIKSA…" : "GABUNG ROOM →"}
+            </button>
+            {!invitedRoom && <button className="wback" type="button" onClick={() => setView("choices")}>← Kembali</button>}
+          </form>
+        )}
         {err && <p className="werr">{err}</p>}
       </section>
     </div>
