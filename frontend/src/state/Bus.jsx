@@ -108,9 +108,20 @@ export function BusProvider({ children, role: appRole }) {
   const outbox = useRef([]);
   const push = useCallback((fn) => setState((prev) => fn(prev)), []);
 
-  const send = useCallback((message) => {
-    if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify(message));
-    else if (ws.current?.readyState === WebSocket.CONNECTING) outbox.current.push(message);
+  const send = useCallback((message, { queueWhileConnecting = true } = {}) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      try {
+        ws.current.send(JSON.stringify(message));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    if (queueWhileConnecting && ws.current?.readyState === WebSocket.CONNECTING) {
+      outbox.current.push(message);
+      return true;
+    }
+    return false;
   }, []);
 
   useEffect(() => {
@@ -190,7 +201,19 @@ export function BusProvider({ children, role: appRole }) {
         else if (m.type === "panic_blur") push((prev) => ({ ...prev, panic: Boolean(m.active) }));
         else if (m.type === "attack_status") push((prev) => ({ ...prev, activeAttackId: m.attackId ?? null, queuePosition: ["QUEUED"].includes(m.status) ? prev.queuePosition : null }));
         else if (m.type === "attack_result") push((prev) => updateAttackResult(prev, m));
-        else if (m.type === "attack_rejected") push((prev) => ({ ...prev, attackError: m.reason, activeAttackId: null, queuePosition: null }));
+        else if (m.type === "attack_rejected") {
+          const messages = {
+            NOT_JOINED: "Sesi pemain belum tersambung ke room. Coba muat ulang room.",
+            ROUND_CLOSED: "Ronde belum dibuka atau sudah selesai.",
+            QUEUE_FULL: "Antrean serangan penuh. Coba lagi sebentar.",
+            COOLDOWN: "Serangan masih dalam cooldown. Tunggu sebentar.",
+            ACTIVE_ATTACK: "Serangan sebelumnya masih diproses.",
+            CONTENT_FILTERED: "Prompt berisi kata yang tidak diizinkan.",
+            MANUAL_TOO_LONG: "Prompt terlalu panjang. Maksimal 1.000 karakter.",
+            MANUAL_DISABLED: "Prompt manual tidak tersedia di server ini. Muat ulang halaman untuk mengambil versi terbaru.",
+          };
+          push((prev) => ({ ...prev, attackError: messages[m.reason] ?? m.reason ?? "Serangan ditolak oleh server.", activeAttackId: null, queuePosition: null }));
+        }
         else if (m.type === "cooldown") push((prev) => ({ ...prev, cooldownUntil: m.untilEpochSec * 1000 }));
         else if (m.type === "raw_breach") push((prev) => ({ ...prev, breachRaw: { mon: m.mon, secs: m.secs, txUrl: m.txHash ? prev.txExplorerBaseUrl + m.txHash : null } }));
         else if (m.type === "telemetry") push((prev) => ({ ...prev, telemetry: { totalAttacks: m.totalAttacks ?? prev.telemetry.totalAttacks, vetoes: m.vetoes ?? prev.telemetry.vetoes, breaches: m.breaches ?? prev.telemetry.breaches, medianEndToEndMs: "medianEndToEndMs" in m ? m.medianEndToEndMs : prev.telemetry.medianEndToEndMs } }));
@@ -234,7 +257,7 @@ export function BusProvider({ children, role: appRole }) {
       },
       attack: (payload) => {
         push((prev) => ({ ...prev, attackError: null }));
-        send({ type: "attack", payload: payload.payload ?? {}, manual: payload.rawText });
+        return send({ type: "attack", payload: payload.payload ?? {}, manual: payload.rawText }, { queueWhileConnecting: false });
       },
       panic: () => send({ type: "host_cmd", cmd: "PANIC_BLUR" }),
       host: {

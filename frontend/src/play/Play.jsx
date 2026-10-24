@@ -197,11 +197,15 @@ export default function Play() {
     }
     setError("");
             const fromCards = text === composeAttack(picked);
-            api.attack({ payload: fromCards ? {
+    const sent = api.attack({ payload: fromCards ? {
               kedok: ROWS[0].cards[picked[0]].text,
               alasan: ROWS[1].cards[picked[1]].text,
               taktik: ROWS[2].cards[picked[2]].text,
             } : {}, rawText: fromCards ? undefined : text });
+    if (!sent) {
+      setError(mode === "connecting" ? "Koneksi ke server sedang disiapkan. Tunggu tersambung lalu kirim ulang." : "Koneksi ke server terputus. Serangan belum terkirim; tunggu tersambung lalu kirim ulang.");
+      return;
+    }
     setInFlight(true);
     play("ack");
     navigator.vibrate?.(15);
@@ -359,8 +363,9 @@ export default function Play() {
             </div>
             {state.queuePosition != null && <p className="dim">Masuk antrean #{state.queuePosition}{state.queueEtaMs ? ` · estimasi ${Math.ceil(state.queueEtaMs / 1000)} dtk` : ""}</p>}
             <small className="dim">Spectator text passes the backend profanity filter before it appears on /stage (PRD 8).</small>
-            <button className="btn btn--stop big sendbtn" onClick={send} disabled={attackActive || cooling || queueFull}>
-              {queueFull ? "Queue full" : attackActive ? (state.queuePosition ? `Queue #${state.queuePosition}` : "Attack in progress…") : cooling ? `Cooldown ${coolLeft}s` : "ATTACK"}
+            {mode !== "real" && <p className="err" role="status">{mode === "connecting" ? "Menghubungkan ke server…" : "Koneksi terputus. Menghubungkan ulang…"}</p>}
+            <button className="btn btn--stop big sendbtn" onClick={send} disabled={mode !== "real" || attackActive || cooling || queueFull}>
+              {mode !== "real" ? (mode === "connecting" ? "MENGHUBUNGKAN…" : "MENYAMBUNG ULANG…") : queueFull ? "Queue full" : attackActive ? (state.queuePosition ? `Queue #${state.queuePosition}` : "Attack in progress…") : cooling ? `Cooldown ${coolLeft}s` : "ATTACK"}
             </button>
             {cooling && <div className="cd"><i style={{ width: `${(coolLeft / QUEUE.COOLDOWN_S) * 100}%` }} /></div>}
             {(error || state.attackError) && <p className="err">{error || state.attackError}</p>}
