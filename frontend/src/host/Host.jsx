@@ -9,8 +9,8 @@ import "./Host.css";
 
 const PHASES = [
   { key: PHASE.LOBBY, label: "LOBBY", api: "lobby", desc: "Room stays open until host starts" },
-  { key: PHASE.RAW, label: "MULAI PERMAINAN", api: "startRaw", desc: "Round 1 · 60 seconds" },
-  { key: PHASE.SHIELD, label: "ROUND 2 · VAULT", api: "vaultOn", desc: "AegisVault ON · 120 seconds" },
+  { key: PHASE.RAW, label: "MULAI PERMAINAN", api: "startRaw", desc: "Round 1 · 45 seconds" },
+  { key: PHASE.SHIELD, label: "ROUND 2 · VAULT", api: "vaultOn", desc: "AegisVault ON · 45 seconds" },
   { key: PHASE.OVER, label: "AKHIRI PERMAINAN", api: "gameOver", desc: "Show results + telemetry" },
 ];
 
@@ -76,7 +76,7 @@ export default function Host() {
             </button>
           ))}
         </div>
-        <p className="dim">Room menunggu di lobby sampai host memilih <b>MULAI PERMAINAN</b>. Setelah dimulai, Round 1 berlangsung 60 detik, Round 2 berlangsung 120 detik, lalu podium tampil otomatis.</p>
+        <p className="dim">Room menunggu di lobby sampai host memilih <b>MULAI PERMAINAN</b>. Setelah dimulai, Round 1 berlangsung 45 detik, Round 2 berlangsung 45 detik, lalu podium tampil otomatis.</p>
         <div className="hgrid stats">
           <Stat k="Game duration" v={state.gameStartedAt ? formatDuration(state.gameElapsedMs) : "Belum dimulai"} />
           <Stat k="Started at" v={formatClock(state.gameStartedAt)} />

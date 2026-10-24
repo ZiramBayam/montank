@@ -81,8 +81,8 @@ export interface GameState {
 
 export const PHASE_DURATIONS: Record<Phase, number> = {
   LOBBY_OPEN: 60_000,
-  ROUND_1_RAW: 60_000,
-  ROUND_2_SHIELD: 120_000,
+  ROUND_1_RAW: 45_000,
+  ROUND_2_SHIELD: 45_000,
   GAME_OVER: 60_000,
 };
 

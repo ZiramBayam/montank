@@ -282,7 +282,7 @@ export function BusProvider({ children, role: appRole }) {
   return <RoomCtx.Provider value={{ state, api, mode }}>{children}</RoomCtx.Provider>;
 }
 
-const DURATIONS = { LOBBY_OPEN: 60_000, ROUND_1_RAW: 60_000, ROUND_2_SHIELD: 120_000, GAME_OVER: 60_000 };
+const DURATIONS = { LOBBY_OPEN: 60_000, ROUND_1_RAW: 45_000, ROUND_2_SHIELD: 45_000, GAME_OVER: 60_000 };
 function applyLocalMessage(message, push, ref) {
   if (!message) return;
   if (message.type === "join") {

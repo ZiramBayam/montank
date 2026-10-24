@@ -14,8 +14,8 @@ const TIER_SFX = { ATTEMPT: "t10", LAYER0: "t50", VICTIM: "t100", G1: "t250", G2
 const BOLT_MS = 380;
 const GAP_MS = 420;
 const BOOT_MS = 900;
-const RAW_ROUND_MS = 60_000;
-const SHIELD_ROUND_MS = 120_000;
+const RAW_ROUND_MS = 45_000;
+const SHIELD_ROUND_MS = 45_000;
 const BOOT_LINES = ["CONNECTING TO ARENA…", "SYNC LEDGER…", "ARMING PROMPT ENGINE…"];
 const GUARD_FALLBACK = [
   { clear: false, ms: 0 },
