@@ -329,10 +329,15 @@ function queueAttack(attack: AttackRecord): void {
   for (const client of clients) if (client.roomCode === arena.roomCode && client.channel === 'play' && client.playerId === attack.playerId) {
     push(client, 'attack_ack', { attackId: attack.attackId, queuePos, estMs });
   }
-  broadcast(arena, 'stage', 'killfeed', { entry: {
+  const entry = {
     attackId: attack.attackId, nickname: attack.nickname,
     text: displayAttack(attack.text, arena.room.panicBlur), verdict: 'QUEUED', simulated: attack.simulated,
-  } });
+    rehearsal: arena.room.rehearsal,
+  };
+  for (const client of clients) if (client.roomCode === arena.roomCode && client.channel === 'play' && client.playerId === attack.playerId) {
+    push(client, 'killfeed', { entry });
+  }
+  broadcast(arena, 'stage', 'killfeed', { entry });
   broadcast(arena, 'stage', 'telemetry', telemetrySnapshot(arena));
   sendQueueUpdates(arena);
 }

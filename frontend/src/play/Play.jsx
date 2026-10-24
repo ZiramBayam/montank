@@ -306,7 +306,7 @@ export default function Play() {
                   {a.labels.map((l) => (
                     <span className="badge" key={l}>[{l}]</span>
                   ))}
-                  <b className="score">{TIERS[a.verdict.tier]?.points ?? 0}</b>
+                  <b className="score">{a.verdict.points ?? TIERS[a.verdict.tier]?.points ?? 0}</b>
                   {a.guards && (
                     <span className="mini">
                       {a.guards.map((g, i) => (
