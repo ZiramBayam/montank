@@ -108,11 +108,6 @@ export default function Welcome() {
           <b className="wcode t-score">{created}</b>
           {qr && <img className="qr" src={qr} alt={`QR to join room ${created}`} />}
           <p className="dim">Phones scan this QR → they land on /play already inside the room.</p>
-          <div className="wroles">
-            <a className="btn" href={`/play?room=${created}`}>PHONE /play ↗</a>
-            <a className="btn" href={`/host?room=${created}`}>HOST /host ↗</a>
-            <a className="btn" href={`/stage?room=${created}`}>TV /stage ↗</a>
-          </div>
           <button
             className="btn"
             onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/play?room=${created}`)}
