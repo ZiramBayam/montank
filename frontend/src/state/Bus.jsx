@@ -181,7 +181,11 @@ export function BusProvider({ children, role: appRole }) {
         }
         else if (m.type === "join_rejected") {
           localStorage.removeItem("pf_player_id");
-          push((prev) => ({ ...prev, joinError: m.reason, playerId: null, activeAttackId: null, queuePosition: null }));
+          if (m.reason === "SESSION_EXPIRED") {
+            push((prev) => ({ ...prev, joinError: null, playerId: null, nickname: null, activeAttackId: null, queuePosition: null }));
+          } else {
+            push((prev) => ({ ...prev, joinError: m.reason, playerId: null, activeAttackId: null, queuePosition: null }));
+          }
         }
         else if (m.type === "room_rejected") push((prev) => ({ ...prev, joinError: "ROOM_NOT_FOUND" }));
         else if (m.type === "scoreboard") push((prev) => ({ ...prev, players: mergePlayers(prev.players, m.top), myScore: m.score, myRank: m.rank }));

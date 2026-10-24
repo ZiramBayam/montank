@@ -41,6 +41,7 @@ export default function Play() {
   const [startError, setStartError] = useState("");
   const seen = useRef(new Set());
   const bootTimer = useRef(null);
+  const hadSession = useRef(false);
   const [localFlight, setLocalFlight] = useState(null);
 
   useEffect(() => { probeFiles(); }, []);
@@ -51,8 +52,15 @@ export default function Play() {
     }
   }, [state.playerId, state.nickname]);
   useEffect(() => {
-    if (state.joinError === "SESSION_EXPIRED") setJoined(false);
-  }, [state.joinError]);
+    if (state.playerId) {
+      hadSession.current = true;
+      return;
+    }
+    if (hadSession.current) {
+      hadSession.current = false;
+      setJoined(false);
+    }
+  }, [state.playerId]);
   useEffect(() => {
     if (state.lastAttackResult) setInFlight(false);
   }, [state.lastAttackResult]);
