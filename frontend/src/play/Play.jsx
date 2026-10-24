@@ -23,6 +23,7 @@ const GUARD_FALLBACK = [
 
 export default function Play() {
   const { state, api, mode } = useBus();
+  const ownerToken = new URLSearchParams(window.location.search).get("owner") || "";
   const [nick, setNick] = useState(() => localStorage.getItem("pf_nick") || "");
   const [joined, setJoined] = useState(false);
   const [booting, setBooting] = useState(false);
@@ -34,6 +35,8 @@ export default function Play() {
   const [error, setError] = useState("");
   const [leaveError, setLeaveError] = useState("");
   const [leaving, setLeaving] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState("");
   const seen = useRef(new Set());
   const bootTimer = useRef(null);
   const [localFlight, setLocalFlight] = useState(null);
@@ -222,11 +225,32 @@ export default function Play() {
       localStorage.removeItem("pf_player_id");
       const destination = new URL("/", window.location.origin);
       if (roomCode) destination.searchParams.set("room", roomCode);
+      if (ownerToken) destination.searchParams.set("owner", ownerToken);
       destination.searchParams.set("left", "1");
       window.location.href = destination.toString();
     } catch (leaveError) {
       setLeaveError(leaveError instanceof Error ? leaveError.message : "Tidak dapat keluar dari room. Coba lagi.");
       setLeaving(false);
+    }
+  };
+
+  const startGame = async () => {
+    if (!ownerToken || starting) return;
+    setStartError("");
+    setStarting(true);
+    try {
+      const roomCode = roomFromUrl();
+      const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/start`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${ownerToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: state.playerId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error === "GAME_ALREADY_STARTED" ? "Permainan sudah dimulai." : result.error === "CREATOR_NOT_JOINED" ? "Gabung sebagai pemain sebelum memulai." : "Hak mulai room tidak valid.");
+    } catch (startError) {
+      setStartError(startError instanceof Error ? startError.message : "Tidak dapat memulai permainan.");
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -250,7 +274,7 @@ export default function Play() {
       {over ? (
         <FinalBoard rank={rank} myScore={myScore} standing={standing} me={nick} />
       ) : lobby ? (
-        <WaitingRoom nick={nick} playerCount={playerCount} others={standing} />
+        <WaitingRoom nick={nick} playerCount={playerCount} others={standing} ownerToken={ownerToken} canStart={Boolean(state.playerId)} onStart={startGame} starting={starting} startError={startError} />
       ) : (
         <>
           {/* 1 Leaderboard */}
@@ -481,7 +505,7 @@ function FinalBoard({ rank, myScore, standing, me }) {
 }
 
 /* ===== ruang tunggu (fase LOBBY — game belum dibuka host) ===== */
-function WaitingRoom({ nick, playerCount, others }) {
+function WaitingRoom({ nick, playerCount, others, ownerToken, canStart, onStart, starting, startError }) {
   const room = roomFromUrl();
   const [qr, setQr] = useState(null); // { room, url } — codec QRCode async
   const [copied, setCopied] = useState("");
@@ -533,6 +557,15 @@ function WaitingRoom({ nick, playerCount, others }) {
           {qrUrl && <img className="wqr" src={qrUrl} alt={`QR to join room ${room}`} />}
           {qrUrl && <p className="dim wqrnote">Friends scan this QR — they land here, in this waiting room.</p>}
         </>
+      )}
+      {ownerToken && (
+        <div className="wroom-owner">
+          <button className="btn btn--primary big" onClick={onStart} disabled={starting || !canStart}>
+            {starting ? "MEMULAI…" : canStart ? "MULAI PERMAINAN" : "BERGABUNG DULU…"}
+          </button>
+          <p className="dim">Khusus pembuat room. Setelah mulai, kedua ronde berjalan otomatis.</p>
+          {startError && <p className="err" role="alert">{startError}</p>}
+        </div>
       )}
       <span className="badge badge--sim">
         {playerCount} PLAYER{playerCount === 1 ? "" : "S"} IN

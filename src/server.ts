@@ -216,14 +216,16 @@ function hostStatus(arena: ArenaContext): Record<string, unknown> {
   };
 }
 
-function isHostToken(candidate: unknown, arena: ArenaContext): boolean {
+function tokenMatches(candidate: unknown, expected: string): boolean {
   if (typeof candidate !== 'string') return false;
-  return [config.hostToken, arena.hostToken].some((token) => {
-    if (!token) return false;
-    const a = Buffer.from(candidate);
-    const b = Buffer.from(token);
-    return a.length === b.length && timingSafeEqual(a, b);
-  });
+  if (!expected) return false;
+  const a = Buffer.from(candidate);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function isHostToken(candidate: unknown): boolean {
+  return tokenMatches(candidate, config.hostToken);
 }
 
 function clientIp(request: FastifyRequest): string {
@@ -697,11 +699,26 @@ app.post('/api/rooms', async (_request, reply) => {
   defaultRoomCode = roomCode;
   await persistRoomInvite();
   reply.header('Cache-Control', 'no-store');
-  return { roomCode, hostToken };
+  return { roomCode, ownerToken: hostToken };
 });
 app.get('/api/rooms/:roomCode', async (request) => {
   const { roomCode } = request.params as { roomCode: string };
   return { valid: Boolean(getArena(roomCode)) };
+});
+app.post('/api/rooms/:roomCode/start', async (request, reply) => {
+  const { roomCode } = request.params as { roomCode: string };
+  const arena = getArena(roomCode);
+  if (!arena) return reply.code(404).send({ error: 'ROOM_NOT_FOUND' });
+  const authorization = request.headers.authorization ?? '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  if (!tokenMatches(token, arena.hostToken)) return reply.code(403).send({ error: 'HOST_ONLY' });
+  const body = request.body as { playerId?: unknown } | undefined;
+  if (typeof body?.playerId !== 'string' || !arena.room.players.has(body.playerId)) {
+    return reply.code(409).send({ error: 'CREATOR_NOT_JOINED' });
+  }
+  if (arena.room.phase !== 'LOBBY_OPEN') return reply.code(409).send({ error: 'GAME_ALREADY_STARTED' });
+  await hostCommand(arena, 'ROUND1', {});
+  return { ok: true, state: arena.room.gameState() };
 });
 app.post('/api/rooms/:roomCode/leave', async (request, reply) => {
   const { roomCode } = request.params as { roomCode: string };
@@ -745,7 +762,7 @@ for (const channel of ['play', 'stage', 'host'] as const) {
     const client: Client = {
       socket: socket as unknown as Socket,
       channel,
-      authorized: channel === 'play' ? false : isHostToken(token, arena),
+      authorized: channel === 'play' ? false : isHostToken(token),
       ip: clientIp(request),
       roomCode,
     };

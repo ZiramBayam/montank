@@ -22,11 +22,11 @@ export default function Welcome() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || "Room service unavailable");
       if (!isRoomCode(result.roomCode)) throw new Error("Invalid room code");
-      if (typeof result.hostToken !== "string" || result.hostToken.length < 32) throw new Error("Host session could not be secured. Try again.");
-      const host = new URL("/host", window.location.origin);
-      host.searchParams.set("room", result.roomCode);
-      host.searchParams.set("t", result.hostToken);
-      window.location.href = host.toString();
+      if (typeof result.ownerToken !== "string" || result.ownerToken.length < 32) throw new Error("Owner session could not be secured. Try again.");
+      const player = new URL("/play", window.location.origin);
+      player.searchParams.set("room", result.roomCode);
+      player.searchParams.set("owner", result.ownerToken);
+      window.location.href = player.toString();
     } catch (error) {
       setErr(error instanceof Error ? error.message : "Server room tidak dapat dijangkau. Coba lagi saat koneksi tersedia.");
     } finally {
@@ -49,7 +49,11 @@ export default function Welcome() {
         setErr("Kode undangan tidak aktif. Minta kode terbaru dari host.");
         return;
       }
-      window.location.href = `/play?room=${encodeURIComponent(code)}`;
+      const destination = new URL("/play", window.location.origin);
+      destination.searchParams.set("room", code);
+      const ownerToken = params.get("owner");
+      if (ownerToken && code === invitedRoom.toUpperCase()) destination.searchParams.set("owner", ownerToken);
+      window.location.href = destination.toString();
     } catch {
       setErr("Kode tidak dapat diperiksa. Periksa koneksi lalu coba lagi.");
     } finally {
@@ -112,7 +116,7 @@ export default function Welcome() {
       </section>
 
       <p className="footnote dim">
-        CREATE ROOM akan membuka panel host. Bagikan QR/kode dari sana, lalu mulai permainan saat peserta siap.
+        Pembuat room ikut bermain sebagai peserta dan mendapat tombol mulai di lobby. Bagikan kode/QR dari layar pemain.
       </p>
     </div>
   );

@@ -33,11 +33,12 @@ Default `REHEARSAL=true`: LLM diganti stub lokal, tidak ada transaksi RPC, dan `
 - `GET /health` — status layanan dan mode
 - `GET /api/lobby` — `BASE_URL`, tautan `/play`, jumlah pemain, dan fase
 - `POST /api/rooms` — membuat arena terpisah dan memberi token host kepada pembuat; room lain tetap berjalan
+- `POST /api/rooms/:roomCode/start` — memulai permainan; memerlukan token pembuat room
 - `GET /api/rooms/:roomCode` — memvalidasi kode undangan dari perangkat peserta
 - `GET /qr.png` — QR dari `BASE_URL/play?room=<kode>`
 - WebSocket `/ws/play`, `/ws/stage`, `/ws/host?t=<HOST_TOKEN>` (alias kompatibilitas: `/play`, `/stage`, `/host`)
 
-Setiap room memiliki kode, token host, pemain, scoreboard, fase permainan, timer, dan antrean serangan sendiri. Membuat room baru tidak mengubah room yang sedang berjalan; pemain dapat membuat room lain tanpa menunggu peserta room sebelumnya keluar. Daftar room disimpan di `data/room-invite.json`, sementara state tiap room disimpan terpisah di `data/rooms/`. Koneksi Monad dan kontrak vault tetap merupakan layanan bersama backend.
+Setiap room memiliki kode, token mulai milik pembuat, pemain, scoreboard, fase permainan, timer, dan antrean serangan sendiri. Pembuat masuk sebagai peserta biasa dan mendapat satu tombol tambahan untuk memulai permainan; tokennya tidak memberi akses ke kontrol host lainnya. Membuat room baru tidak mengubah room yang sedang berjalan; pemain dapat membuat room lain tanpa menunggu peserta room sebelumnya keluar. Daftar room disimpan di `data/room-invite.json`, sementara state tiap room disimpan terpisah di `data/rooms/`. Koneksi Monad dan kontrak vault tetap merupakan layanan bersama backend.
 
 Host tanpa token hanya menerima status dan tidak bisa mengirim perintah. Peserta dapat memakai kartu cepat atau mengirim prompt bebas hingga 1.000 karakter selama ronde aktif. Prompt bebas tidak bergantung pada pengaturan host; filter konten dan batas panjang tetap berlaku.
 
