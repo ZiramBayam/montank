@@ -8,11 +8,17 @@ import { unlockAudio } from "../state/sfx.js";
 import "./Host.css";
 
 const PHASES = [
-  { key: PHASE.LOBBY, label: "LOBBY", api: "lobby", desc: "QR + nickname (0:00–1:00)" },
-  { key: PHASE.RAW, label: "ROUND 1 · RAW", api: "startRaw", desc: "No protection (1:00–2:00)" },
-  { key: PHASE.SHIELD, label: "ROUND 2 · VAULT", api: "vaultOn", desc: "AegisVault ON (2:00–4:00)" },
-  { key: PHASE.OVER, label: "PODIUM", api: "gameOver", desc: "Results + telemetry (4:00–5:00)" },
+  { key: PHASE.LOBBY, label: "LOBBY", api: "lobby", desc: "Room stays open until host starts" },
+  { key: PHASE.RAW, label: "MULAI PERMAINAN", api: "startRaw", desc: "Round 1 · 60 seconds" },
+  { key: PHASE.SHIELD, label: "ROUND 2 · VAULT", api: "vaultOn", desc: "AegisVault ON · 120 seconds" },
+  { key: PHASE.OVER, label: "AKHIRI PERMAINAN", api: "gameOver", desc: "Show results + telemetry" },
 ];
+
+const formatDuration = (ms = 0) => {
+  const totalSeconds = Math.floor(ms / 1000);
+  return `${String(Math.floor(totalSeconds / 60)).padStart(2, "0")}:${String(totalSeconds % 60).padStart(2, "0")}`;
+};
+const formatClock = (time) => time ? new Date(time).toLocaleString() : "—";
 
 export default function Host() {
   const { state, api, mode } = useBus();
@@ -54,22 +60,28 @@ export default function Host() {
       </header>
 
       <section className="card hzone">
-        <h2 className="purple">1 · Demo Phases (5-minute state machine)</h2>
+        <h2 className="purple">1 · Pengaturan Permainan</h2>
         <div className="hgrid">
           {PHASES.map((p) => (
             <button
               key={p.key}
-              className={`btn ${state.phase === p.key ? "btn--primary" : ""}`}
+              className={`btn ${p.api === "startRaw" ? "btn--primary" : ""} ${state.phase === p.key ? "btn--go" : ""}`}
               onClick={() => act(api.host[p.api], `→ ${p.label}`)}
-              disabled={readOnly}
+              disabled={readOnly
+                || (p.api === "startRaw" && state.phase !== PHASE.LOBBY)
+                || (p.api === "vaultOn" && (!state.gameStartedAt || state.phase === PHASE.OVER))
+                || (p.api === "gameOver" && (!state.gameStartedAt || state.phase === PHASE.OVER))}
             >
               {p.label}
             </button>
           ))}
         </div>
-        <p className="dim">
-          Order: LOBBY → RAW → VAULT → OVER. Round timers show on /stage.
-        </p>
+        <p className="dim">Room menunggu di lobby sampai host memilih <b>MULAI PERMAINAN</b>. Setelah dimulai, Round 1 berlangsung 60 detik, Round 2 berlangsung 120 detik, lalu podium tampil otomatis.</p>
+        <div className="hgrid stats">
+          <Stat k="Game duration" v={state.gameStartedAt ? formatDuration(state.gameElapsedMs) : "Belum dimulai"} />
+          <Stat k="Started at" v={formatClock(state.gameStartedAt)} />
+          <Stat k="Finished at" v={formatClock(state.gameEndedAt)} />
+        </div>
         {state.phase === PHASE.OVER && (
           <button className="btn btn--primary" onClick={() => act(api.host.newGame, "start next game")} disabled={readOnly}>
             START NEXT GAME → LOBBY

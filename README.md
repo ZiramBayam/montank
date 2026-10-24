@@ -32,12 +32,12 @@ Default `REHEARSAL=true`: LLM diganti stub lokal, tidak ada transaksi RPC, dan `
 - `GET /`, `/play`, `/stage`, `/host` — layar frontend
 - `GET /health` — status layanan dan mode
 - `GET /api/lobby` — `BASE_URL`, tautan `/play`, jumlah pemain, dan fase
-- `POST /api/rooms` — mengembalikan kode undangan untuk arena aktif
+- `POST /api/rooms` — membuat sesi arena baru dan memberi token host kepada pembuat; semua pemain harus keluar dari sesi aktif terlebih dulu
 - `GET /api/rooms/:roomCode` — memvalidasi kode undangan dari perangkat peserta
 - `GET /qr.png` — QR dari `BASE_URL/play?room=<kode>`
 - WebSocket `/ws/play`, `/ws/stage`, `/ws/host?t=<HOST_TOKEN>` (alias kompatibilitas: `/play`, `/stage`, `/host`)
 
-Kode undangan yang sama dipakai seluruh peserta dan disimpan di `data/room-invite.json` agar tetap berlaku setelah backend restart. Backend saat ini menjalankan satu arena aktif; kode ini adalah tautan masuk, bukan pemisah beberapa room.
+Backend menjalankan satu arena aktif. Setiap pembuatan room mengganti kode undangan, mengosongkan state permainan sebelumnya, dan memberi pembuat tautan host. Kode dan token host aktif disimpan di `data/room-invite.json` agar tetap berlaku setelah backend restart. Room baru tidak bisa dibuat selama pemain masih tersambung.
 
 Host tanpa token hanya menerima status dan tidak bisa mengirim perintah. Peserta dapat memakai kartu cepat atau mengirim prompt bebas hingga 1.000 karakter selama ronde aktif. Prompt bebas tidak bergantung pada pengaturan host; filter konten dan batas panjang tetap berlaku.
 
@@ -45,7 +45,7 @@ Host tanpa token hanya menerima status dan tidak bisa mengirim perintah. Peserta
 
 `/play` menerima `join {nickname}`, `rejoin {playerId}`, dan `attack {payload, manual?}`. Nickname mengikuti `^[a-zA-Z0-9_]{2,12}$`. Nama tabrakan diberi suffix. Batas awal: 40 pemain, 3 join/IP, 1 serangan aktif per pemain, antrean maksimum 12, cooldown 5 detik setelah hasil, dan prompt manual maksimum 1.000 karakter.
 
-`/host` menerima `host_cmd {cmd, ...}`. Perintah yang tersedia: `ROUND1`, `VAULT_ON`, `JUDGE_CLAIM_A`, `JUDGE_CLAIM_B`, `SIM_CROWD`, `SAMPLE_ATTACK`, `PANIC_BLUR`, `REFILL`, `REHEARSAL`, dan `GOTO:<phase>`. `REFILL` hanya memberi pengingat; backend tidak mengirim dana untuk refill.
+`/host` menerima `host_cmd {cmd, ...}`. Host memulai permainan dengan `ROUND1`; lobby tidak mulai otomatis. Setelah dimulai, Round 1 (60 detik) dan Round 2 (120 detik) maju otomatis hingga podium. Host dan panggung menampilkan durasi total serta waktu mulai dan selesai. Perintah lain: `VAULT_ON`, `JUDGE_CLAIM_A`, `JUDGE_CLAIM_B`, `SIM_CROWD`, `SAMPLE_ATTACK`, `PANIC_BLUR`, `REFILL`, `REHEARSAL`, dan `GOTO:<phase>`. `REFILL` hanya memberi pengingat; backend tidak mengirim dana untuk refill.
 
 Panic Blur aktif/nonaktif dengan `PANIC_BLUR`. Prompt bebas selalu tersedia selama ronde aktif. Filter konten tetap berlaku sebelum prompt ditampilkan pada `/stage`.
 

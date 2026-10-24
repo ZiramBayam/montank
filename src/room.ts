@@ -17,6 +17,8 @@ export class Room {
   phase: Phase = 'LOBBY_OPEN';
   phaseStartedAt = Date.now();
   phaseDuration = PHASE_DURATIONS.LOBBY_OPEN;
+  gameStartedAt: number | null = null;
+  gameEndedAt: number | null = null;
   vaultOn = false;
   rehearsal = config.rehearsal;
   panicBlur = config.panicBlur;
@@ -45,6 +47,27 @@ export class Room {
     this.phase = 'LOBBY_OPEN';
     this.phaseStartedAt = Date.now();
     this.phaseDuration = PHASE_DURATIONS.LOBBY_OPEN;
+    this.gameStartedAt = null;
+    this.gameEndedAt = null;
+    this.schedulePersist();
+  }
+
+  resetForNewRoom(): void {
+    this.players.clear();
+    this.nicknames.clear();
+    this.joinsByIp.clear();
+    this.queue.length = 0;
+    this.attacks.clear();
+    this.globalQueueEpoch++;
+    this.vaultOn = false;
+    this.phase = 'LOBBY_OPEN';
+    this.phaseStartedAt = Date.now();
+    this.phaseDuration = PHASE_DURATIONS.LOBBY_OPEN;
+    this.gameStartedAt = null;
+    this.gameEndedAt = null;
+    this.rehearsal = config.rehearsal;
+    this.panicBlur = config.panicBlur;
+    this.attackCounter = 0;
     this.schedulePersist();
   }
 
@@ -133,8 +156,18 @@ export class Room {
   }
 
   setPhase(phase: Phase): void {
+    const now = Date.now();
+    if (phase === 'LOBBY_OPEN') {
+      this.gameStartedAt = null;
+      this.gameEndedAt = null;
+    } else if ((phase === 'ROUND_1_RAW' || phase === 'ROUND_2_SHIELD') && this.gameStartedAt === null) {
+      this.gameStartedAt = now;
+      this.gameEndedAt = null;
+    } else if (phase === 'GAME_OVER' && this.gameStartedAt !== null && this.gameEndedAt === null) {
+      this.gameEndedAt = now;
+    }
     this.phase = phase;
-    this.phaseStartedAt = Date.now();
+    this.phaseStartedAt = now;
     this.phaseDuration = PHASE_DURATIONS[phase];
     if (phase === 'LOBBY_OPEN' || phase === 'ROUND_1_RAW') this.vaultOn = false;
     if (phase === 'ROUND_2_SHIELD') this.vaultOn = true;
@@ -160,9 +193,13 @@ export class Room {
   }
 
   gameState(): GameState {
+    const gameEnd = this.gameEndedAt ?? Date.now();
     return {
       phase: this.phase,
       tMsLeft: Math.max(0, this.phaseDuration - (Date.now() - this.phaseStartedAt)),
+      gameStartedAt: this.gameStartedAt,
+      gameEndedAt: this.gameEndedAt,
+      gameElapsedMs: this.gameStartedAt === null ? 0 : Math.max(0, gameEnd - this.gameStartedAt),
       vaultOn: this.vaultOn,
       rehearsal: this.rehearsal,
       panicBlur: this.panicBlur,

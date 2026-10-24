@@ -36,6 +36,9 @@ function initial() {
   return {
     phase: PHASE.LOBBY,
     startedAt: Date.now(),
+    gameStartedAt: null,
+    gameEndedAt: null,
+    gameElapsedMs: 0,
     vaultOn: false,
     panic: false,
     virtual: CONFIG.virtual,
@@ -285,6 +288,7 @@ function mapServerState(server = {}, prev = initial()) {
   const phase = server.phase ?? prev.phase;
   const duration = DURATIONS[phase] ?? 60_000;
   return { phase, startedAt: Date.now() - Math.max(0, duration - (server.tMsLeft ?? duration)), vaultOn: !!server.vaultOn,
+    gameStartedAt: server.gameStartedAt ?? null, gameEndedAt: server.gameEndedAt ?? null, gameElapsedMs: server.gameElapsedMs ?? 0,
     panic: !!server.panicBlur, virtual: !!server.rehearsal };
 }
 function mergePlayers(previous, rows = []) {
@@ -368,16 +372,16 @@ function applyHost(type, p, push, ref) {
       push((st) => ({ ...st, panic: !st.panic }));
       break;
     case "host:lobby":
-      push((st) => ({ ...st, phase: PHASE.LOBBY, startedAt: now, breachRaw: null, flight: null, players: {}, pending: [], queueWaiting: 0 }));
+      push((st) => ({ ...st, phase: PHASE.LOBBY, startedAt: now, gameStartedAt: null, gameEndedAt: null, gameElapsedMs: 0, breachRaw: null, flight: null, players: {}, pending: [], queueWaiting: 0 }));
       break;
     case "host:raw":
-      push((st) => ({ ...st, phase: PHASE.RAW, startedAt: now, vaultOn: false, breachRaw: null, flight: null }));
+      push((st) => ({ ...st, phase: PHASE.RAW, startedAt: now, gameStartedAt: st.gameStartedAt ?? now, gameEndedAt: null, gameElapsedMs: 0, vaultOn: false, breachRaw: null, flight: null }));
       break;
     case "host:vaultOn":
       push((st) => ({ ...st, phase: PHASE.SHIELD, startedAt: now, vaultOn: true, flight: null, players: fillBots(st) }));
       break;
     case "host:over":
-      push((st) => ({ ...st, phase: PHASE.OVER, startedAt: now }));
+      push((st) => ({ ...st, phase: PHASE.OVER, startedAt: now, gameEndedAt: now, gameElapsedMs: st.gameStartedAt ? now - st.gameStartedAt : st.gameElapsedMs }));
       break;
     case "host:claimVendor":
       push((st) => ({

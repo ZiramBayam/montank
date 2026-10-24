@@ -1,5 +1,5 @@
 // Halaman pembuka: CREATE ROOM / JOIN ROOM. Kode undangan dikelola server (lintas perangkat).
-// CREATE langsung masuk lobby /play (QR + invite link ada di ruang tunggu).
+// CREATE membuat sesi baru dan membuka panel host; peserta masuk melalui kode/QR.
 import { useState } from "react";
 import Sprite from "./components/Sprite.jsx";
 import { isRoomCode } from "./state/room.js";
@@ -19,12 +19,16 @@ export default function Welcome() {
     setBusy(true);
     try {
       const response = await fetch("/api/rooms", { method: "POST" });
-      if (!response.ok) throw new Error("Room service unavailable");
       const result = await response.json();
+      if (!response.ok) throw new Error(result.message || "Room service unavailable");
       if (!isRoomCode(result.roomCode)) throw new Error("Invalid room code");
-      window.location.href = `/play?room=${result.roomCode}`;
-    } catch {
-      setErr("Server room tidak dapat dijangkau. Coba lagi saat koneksi tersedia.");
+      if (typeof result.hostToken !== "string" || result.hostToken.length < 32) throw new Error("Host session could not be secured. Try again.");
+      const host = new URL("/host", window.location.origin);
+      host.searchParams.set("room", result.roomCode);
+      host.searchParams.set("t", result.hostToken);
+      window.location.href = host.toString();
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : "Server room tidak dapat dijangkau. Coba lagi saat koneksi tersedia.");
     } finally {
       setBusy(false);
     }
@@ -108,7 +112,7 @@ export default function Welcome() {
       </section>
 
       <p className="footnote dim">
-        Kode undangan dikelola server dan dapat dipakai peserta dari perangkat berbeda.
+        CREATE ROOM akan membuka panel host. Bagikan QR/kode dari sana, lalu mulai permainan saat peserta siap.
       </p>
     </div>
   );

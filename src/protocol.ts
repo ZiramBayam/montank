@@ -62,6 +62,9 @@ export interface Player {
 export interface GameState {
   phase: Phase;
   tMsLeft: number;
+  gameStartedAt: number | null;
+  gameEndedAt: number | null;
+  gameElapsedMs: number;
   vaultOn: boolean;
   rehearsal: boolean;
   panicBlur: boolean;

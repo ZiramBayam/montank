@@ -3,7 +3,7 @@ import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import { resolve } from 'node:path';
 import QRCode from 'qrcode';
-import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { isAddress, type Address } from 'viem';
 import { config } from './config.js';
@@ -24,22 +24,33 @@ const room = new Room();
 const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_RE = /^PF-[ABCDEFGHJKLMNPQRSTUVWXYZ2-9]{4}$/;
 let activeRoomCode = '';
+let activeRoomHostToken = config.hostToken;
+const roomInvitePath = resolve(process.cwd(), 'data/room-invite.json');
+
+function generateRoomCode(): string {
+  return `PF-${Array.from({ length: 4 }, () => ROOM_ALPHABET[randomInt(ROOM_ALPHABET.length)]).join('')}`;
+}
+
+async function persistRoomInvite(): Promise<void> {
+  await mkdir(resolve(process.cwd(), 'data'), { recursive: true });
+  const temp = `${roomInvitePath}.tmp`;
+  await writeFile(temp, JSON.stringify({ roomCode: activeRoomCode, hostToken: activeRoomHostToken }), 'utf8');
+  await rename(temp, roomInvitePath);
+}
+
 async function loadActiveRoomCode(): Promise<void> {
-  const path = resolve(process.cwd(), 'data/room-invite.json');
   try {
-    const saved = JSON.parse(await readFile(path, 'utf8')) as { roomCode?: unknown };
+    const saved = JSON.parse(await readFile(roomInvitePath, 'utf8')) as { roomCode?: unknown; hostToken?: unknown };
     if (typeof saved.roomCode === 'string' && ROOM_CODE_RE.test(saved.roomCode)) {
       activeRoomCode = saved.roomCode;
+      if (typeof saved.hostToken === 'string' && saved.hostToken.length >= 32) activeRoomHostToken = saved.hostToken;
       return;
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') app.log.warn(error, 'Could not restore room invite code');
   }
-  activeRoomCode = `PF-${Array.from({ length: 4 }, () => ROOM_ALPHABET[randomInt(ROOM_ALPHABET.length)]).join('')}`;
-  await mkdir(resolve(process.cwd(), 'data'), { recursive: true });
-  const temp = `${path}.tmp`;
-  await writeFile(temp, JSON.stringify({ roomCode: activeRoomCode }), 'utf8');
-  await rename(temp, path);
+  activeRoomCode = generateRoomCode();
+  await persistRoomInvite();
 }
 const chain = new ChainService();
 const clients = new Set<Client>();
@@ -161,10 +172,13 @@ function hostStatus(): Record<string, unknown> {
 }
 
 function isHostToken(candidate: unknown): boolean {
-  if (!config.hostToken || typeof candidate !== 'string') return false;
-  const a = Buffer.from(candidate);
-  const b = Buffer.from(config.hostToken);
-  return a.length === b.length && timingSafeEqual(a, b);
+  if (typeof candidate !== 'string') return false;
+  return [config.hostToken, activeRoomHostToken].some((token) => {
+    if (!token) return false;
+    const a = Buffer.from(candidate);
+    const b = Buffer.from(token);
+    return a.length === b.length && timingSafeEqual(a, b);
+  });
 }
 
 function clientIp(request: FastifyRequest): string {
@@ -594,7 +608,30 @@ app.get('/api/lobby', async (request) => {
   message: 'Agen Bendahara sengaja dibuat lugu.',
   };
 });
-app.post('/api/rooms', async () => ({ roomCode: activeRoomCode }));
+app.post('/api/rooms', async (_request, reply) => {
+  const connectedPlayers = [...clients].some((client) => client.channel === 'play' && client.playerId && room.players.has(client.playerId));
+  if (connectedPlayers) return reply.code(409).send({ error: 'ROOM_NOT_EMPTY', message: 'Semua pemain perlu keluar sebelum membuat room baru.' });
+  if (workerBusy || room.queue.length > 0) return reply.code(409).send({ error: 'ROOM_BUSY', message: 'Tunggu serangan yang sedang diproses selesai.' });
+
+  const previousCode = activeRoomCode;
+  do { activeRoomCode = generateRoomCode(); } while (activeRoomCode === previousCode);
+  activeRoomHostToken = randomBytes(32).toString('hex');
+  room.resetForNewRoom();
+  rawBreachDone = false;
+  latestRawBreach = null;
+  spotlightCandidates = [];
+  vetoTotal = 0;
+  breachTotal = 0;
+  countedResults.clear();
+  resultLatenciesMs.length = 0;
+  attacksByAction.clear();
+  votesByAction.clear();
+  p3ByAttack.clear();
+  for (const client of clients) client.socket.close(4001, 'A new room was created');
+  await persistRoomInvite();
+  reply.header('Cache-Control', 'no-store');
+  return { roomCode: activeRoomCode, hostToken: activeRoomHostToken };
+});
 app.get('/api/rooms/:roomCode', async (request) => {
   const { roomCode } = request.params as { roomCode: string };
   return { valid: roomCode.toUpperCase() === activeRoomCode };
@@ -678,7 +715,7 @@ async function start(): Promise<void> {
     broadcastState();
   }, 250);
   phaseTimer = setInterval(() => {
-    if (room.gameState().tMsLeft <= 0 && room.phase !== 'GAME_OVER') {
+    if (room.phase !== 'LOBBY_OPEN' && room.gameState().tMsLeft <= 0 && room.phase !== 'GAME_OVER') {
       room.advancePhase();
       if (room.phase === 'ROUND_1_RAW') latestRawBreach = null;
       broadcastState(true);
