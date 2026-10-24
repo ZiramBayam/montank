@@ -20,7 +20,7 @@
   font-family: var(--f-display);
 }
 .phead .me { display: flex; align-items: center; gap: 8px; }
-/* nick di phead memakai Silkscreen (font blok 8-bit); Silkscreen hanya punya bentuk kapital */
+/* nick di phead — font Silkscreen 8-bit blok; input lowercase tampil kapital */
 .phead .me b { color: var(--yellow); font-size: 0.8rem; font-family: var(--f-display); letter-spacing: 0.04em; }
 .me-stats { display: flex; gap: 14px; align-items: baseline; }
 .ptimer {
