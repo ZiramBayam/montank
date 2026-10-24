@@ -1,5 +1,5 @@
 // Halaman pembuka: CREATE ROOM / JOIN ROOM. Demo lintas-tab — ruang hidup per device.
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import Sprite from "./components/Sprite.jsx";
 import { generateRoomCode, isRoomCode, listRooms } from "./state/room.js";
@@ -17,11 +17,22 @@ export default function Welcome() {
   const [joinRole, setJoinRole] = useState("play");
   const [findOpen, setFindOpen] = useState(false);
   const [err, setErr] = useState("");
+  const [qr, setQr] = useState(null); // { room, url } — codec QRCode async
 
-  const qr = useMemo(() => {
-    if (!created) return null;
-    return QRCode.toDataURL(`${window.location.origin}/play?room=${created}`, { width: 360, margin: 2 });
+  // QRCode.toDataURL async — hasil disimpan ke state + room pemiliknya
+  useEffect(() => {
+    if (!created) return undefined;
+    let dead = false;
+    QRCode.toDataURL(`${window.location.origin}/play?room=${created}`, { width: 360, margin: 2 })
+      .then((url) => {
+        if (!dead) setQr({ room: created, url });
+      })
+      .catch(() => {});
+    return () => {
+      dead = true;
+    };
   }, [created]);
+  const qrUrl = qr && qr.room === created ? qr.url : null;
 
   const create = () => {
     setErr("");
@@ -106,7 +117,7 @@ export default function Welcome() {
         <section className="wselect card">
           <h2 className="purple">ROOM READY</h2>
           <b className="wcode t-score">{created}</b>
-          {qr && <img className="qr" src={qr} alt={`QR to join room ${created}`} />}
+          {qrUrl && <img className="qr" src={qrUrl} alt={`QR to join room ${created}`} />}
           <p className="dim">Phones scan this QR → they land on /play already inside the room.</p>
           <button
             className="btn"
