@@ -117,7 +117,7 @@ export default function Play() {
     return (
       <div className="play">
         <header className="phead">
-          <Sprite name="shield" size={26} />
+          <Sprite name="logo" size={26} />
           <b>MONTANK</b>
         </header>
         <section className="card pjoin">
@@ -143,7 +143,7 @@ export default function Play() {
     return (
       <div className="play">
         <header className="phead">
-          <Sprite name="shield" size={26} />
+          <Sprite name="logo" size={26} />
           <b>MONTANK</b>
         </header>
         <section className="card pjoin">

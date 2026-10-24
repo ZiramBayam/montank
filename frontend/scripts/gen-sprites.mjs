@@ -60,6 +60,59 @@ function svg(cells) {
 
 const S = {};
 
+/* == Logo MONTANK: kupola AegisVault + roda 8 juru, hub = koin huruf M, 20x18 == */
+function logoSprite() {
+  const W = 20, H = 18;
+  const G = Array.from({ length: H }, () => Array(W).fill(null));
+  const P = (x, y, c) => { if (G[y]?.[x] !== undefined) G[y][x] = c; };
+  const cx = 9.5, cy = 8.0;
+  const dist = (x, y) => Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+
+  // kupola lingkaran baja + outline
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const r = dist(x, y);
+    if (r <= 7.4) P(x, y, "s");
+    else if (r <= 8.2) P(x, y, "k");
+  }
+  // sorot kiri-atas + bayang kanan-bawah pada ring dalam
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (G[y][x] !== "s") continue;
+    const r = dist(x, y);
+    if (r <= 6.0) continue;
+    const ang = Math.atan2(y + 0.5 - cy, x + 0.5 - cx);
+    if (ang > -Math.PI * 0.75 && ang < -Math.PI * 0.2) P(x, y, "t");
+    if (ang > Math.PI * 0.25 && ang < Math.PI * 0.75) P(x, y, "d");
+  }
+
+  // roda: ring gelap d, rim k, 8 juru kuning (4 lurus + 4 diagonal) berhenti di rim
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const r = dist(x, y);
+    if (r <= 1.4 || r > 5.1) continue;
+    if (r > 4.4) { P(x, y, "k"); continue; }
+    P(x, y, "d");
+    const dx = Math.abs(x + 0.5 - cx), dy = Math.abs(y + 0.5 - cy);
+    if (dx < 0.75 || dy < 0.75 || Math.abs(dx - dy) < 0.75) P(x, y, "y");
+  }
+
+  // koin hub: kotak 6x6 (sudut di-trim) + 'M' 3x3 tinta
+  for (let y = 5; y <= 10; y++) for (let x = 7; x <= 12; x++) {
+    const corner = (y === 5 || y === 10) && (x === 7 || x === 12);
+    P(x, y, corner ? "d" : "y");
+  }
+  P(9, 6, "k"); P(11, 6, "k");
+  P(9, 7, "k"); P(10, 7, "k"); P(11, 7, "k");
+  P(9, 8, "k"); P(11, 8, "k");
+
+  // bar base baja di bawah kupola + kaki
+  for (let x = 3; x <= 16; x++) { P(x, 15, "s"); P(x, 16, "s"); }
+  for (let x = 3; x <= 16; x++) P(x, 16, "d");
+  P(3, 15, "k"); P(16, 15, "k"); P(3, 16, "k"); P(16, 16, "k");
+  P(4, 17, "k"); P(5, 17, "k"); P(14, 17, "k"); P(15, 17, "k");
+
+  return svg(G.map((row) => row.map((c) => c ?? ".").join("")));
+}
+S.logo = logoSprite();
+
 /* == Brand: perisai brankas, 12x14 == */
 S.shield = svg([
   "....kkkkkk..",
@@ -480,5 +533,5 @@ for (const [name, data] of Object.entries(S)) {
   writeFileSync(join(outDir, `${name}.svg`), data);
 }
 
-writeFileSync(join(root, "public", "favicon.svg"), S.shield);
+writeFileSync(join(root, "public", "favicon.svg"), S.logo);
 console.log(`OK — ${Object.keys(S).length} sprite ditulis ke src/assets/sprites`);
