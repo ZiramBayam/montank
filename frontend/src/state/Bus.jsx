@@ -124,7 +124,7 @@ export function BusProvider({ children, role: appRole }) {
       if (dead) return;
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const url = new URL(CONFIG.wsUrl || `${protocol}//${window.location.host}/ws/${role}`);
-      if (role === "play" && roomCode) url.searchParams.set("room", roomCode);
+      if (roomCode) url.searchParams.set("room", roomCode);
       if (["host", "stage"].includes(role) && (qs.has("t") || qs.has("token"))) url.searchParams.set("t", qs.get("t") || qs.get("token"));
       const socket = new WebSocket(url);
       ws.current = socket;
@@ -219,7 +219,7 @@ export function BusProvider({ children, role: appRole }) {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/lobby").then((response) => response.ok ? response.json() : null)
+    fetch(`/api/lobby${roomCode ? `?room=${encodeURIComponent(roomCode)}` : ""}`).then((response) => response.ok ? response.json() : null)
       .then((lobbyInfo) => {
         if (active && lobbyInfo) push((prev) => ({ ...prev, lobbyInfo, txExplorerBaseUrl: lobbyInfo.txExplorerBaseUrl || prev.txExplorerBaseUrl }));
       }).catch(() => {});

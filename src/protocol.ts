@@ -34,6 +34,7 @@ export interface VoteResult {
 
 export interface AttackRecord {
   attackId: string;
+  roomCode?: string;
   playerId: string;
   nickname: string;
   payload: AttackPayload;

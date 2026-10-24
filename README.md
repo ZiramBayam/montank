@@ -1,6 +1,6 @@
 # Montank — backend + frontend
 
-Full-stack demo Montank / Aegis-600. Backend menyediakan satu arena aktif, kode undangan lintas perangkat, room state machine, host controls, pemain/rejoin, antrean, guard P1–P3, Gemini/fallback, integrasi AegisVault Monad, dedup `monadLogs`, treasury telemetry, dan QR lobby. Frontend React menyediakan layar pemain, panggung, dan host.
+Full-stack demo Montank / Aegis-600. Backend menyediakan beberapa arena terpisah dengan kode undangan lintas perangkat, room state machine, host controls, pemain/rejoin, antrean, guard P1–P3, Gemini/fallback, integrasi AegisVault Monad, dedup `monadLogs`, treasury telemetry, dan QR lobby. Frontend React menyediakan layar pemain, panggung, dan host.
 
 ## Jalankan mode gladi
 
@@ -32,12 +32,12 @@ Default `REHEARSAL=true`: LLM diganti stub lokal, tidak ada transaksi RPC, dan `
 - `GET /`, `/play`, `/stage`, `/host` — layar frontend
 - `GET /health` — status layanan dan mode
 - `GET /api/lobby` — `BASE_URL`, tautan `/play`, jumlah pemain, dan fase
-- `POST /api/rooms` — membuat sesi arena baru dan memberi token host kepada pembuat; semua pemain harus keluar dari sesi aktif terlebih dulu
+- `POST /api/rooms` — membuat arena terpisah dan memberi token host kepada pembuat; room lain tetap berjalan
 - `GET /api/rooms/:roomCode` — memvalidasi kode undangan dari perangkat peserta
 - `GET /qr.png` — QR dari `BASE_URL/play?room=<kode>`
 - WebSocket `/ws/play`, `/ws/stage`, `/ws/host?t=<HOST_TOKEN>` (alias kompatibilitas: `/play`, `/stage`, `/host`)
 
-Backend menjalankan satu arena aktif. Setiap pembuatan room mengganti kode undangan, mengosongkan state permainan sebelumnya, dan memberi pembuat tautan host. Kode dan token host aktif disimpan di `data/room-invite.json` agar tetap berlaku setelah backend restart. Room baru tidak bisa dibuat selama pemain masih tersambung.
+Setiap room memiliki kode, token host, pemain, scoreboard, fase permainan, timer, dan antrean serangan sendiri. Membuat room baru tidak mengubah room yang sedang berjalan; pemain dapat membuat room lain tanpa menunggu peserta room sebelumnya keluar. Daftar room disimpan di `data/room-invite.json`, sementara state tiap room disimpan terpisah di `data/rooms/`. Koneksi Monad dan kontrak vault tetap merupakan layanan bersama backend.
 
 Host tanpa token hanya menerima status dan tidak bisa mengirim perintah. Peserta dapat memakai kartu cepat atau mengirim prompt bebas hingga 1.000 karakter selama ronde aktif. Prompt bebas tidak bergantung pada pengaturan host; filter konten dan batas panjang tetap berlaku.
 

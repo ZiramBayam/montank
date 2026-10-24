@@ -12,7 +12,8 @@ export default function Stage() {
   const [lobbyInfo, setLobbyInfo] = useState(null);
   useEffect(() => {
     let active = true;
-    fetch("/api/lobby").then((response) => response.ok ? response.json() : null)
+    const room = new URLSearchParams(window.location.search).get("room");
+    fetch(`/api/lobby${room ? `?room=${encodeURIComponent(room)}` : ""}`).then((response) => response.ok ? response.json() : null)
       .then((data) => { if (active && data) setLobbyInfo(data); })
       .catch(() => {});
     return () => { active = false; };

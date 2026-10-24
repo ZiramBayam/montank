@@ -28,7 +28,7 @@ export default function Host() {
   const readOnly = mode !== "real" || state.hostAuthorized === false;
   useEffect(() => {
     let active = true;
-    fetch("/api/lobby").then((response) => response.ok ? response.json() : null)
+    fetch(`/api/lobby${room ? `?room=${encodeURIComponent(room)}` : ""}`).then((response) => response.ok ? response.json() : null)
       .then((lobby) => { if (active && lobby?.roomCode) setActiveRoom(lobby.roomCode); })
       .catch(() => {});
     return () => { active = false; };
