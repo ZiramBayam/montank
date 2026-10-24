@@ -9,7 +9,7 @@ import {AegisVault} from "../src/AegisVault.sol";
 contract RegisterClaim is Script {
     function run() external {
         uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        AegisVault vault = AegisVault(vm.envAddress("AEGIS_VAULT_ADDRESS"));
+        AegisVault vault = AegisVault(payable(vm.envAddress("AEGIS_VAULT_ADDRESS")));
         string memory claimId = vm.envString("CLAIM_ID");
         string memory category = vm.envString("CLAIM_CATEGORY");
         address recipient = vm.envAddress("CLAIM_RECIPIENT");
