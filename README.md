@@ -1,6 +1,8 @@
-# Montank — backend + frontend
+# Montank — backend + frontend + contracts
 
 Full-stack demo Montank / Aegis-600. Backend menyediakan beberapa arena terpisah dengan kode undangan lintas perangkat, room state machine, host controls, pemain/rejoin, antrean, guard P1–P3, Gemini/fallback, integrasi AegisVault Monad, dedup `monadLogs`, treasury telemetry, dan QR lobby. Frontend React menyediakan layar pemain, panggung, dan host.
+
+Kode backend berada di `backend/src/`, UI di `frontend/`, dan smart contract serta script Foundry di `contracts/`. Perintah `npm run` tetap dijalankan dari root repo.
 
 ## Jalankan mode gladi
 
@@ -52,15 +54,17 @@ Panic Blur aktif/nonaktif dengan `PANIC_BLUR`. Prompt bebas selalu tersedia sela
 
 ## Ledger klaim
 
-Siapkan `claims.json` berdasarkan `claims.example.json`. Setiap klaim harus punya `claimId`, `category`, alamat `recipient`, `amount` dalam MON desimal, dan `status` (`unpaid`/`paid`). P2 hanya memberi Clear jika keempat nilai cocok dengan ledger dan klaim belum dibayar. Jangan gunakan alamat contoh untuk demo live.
+Siapkan `claims.json` berdasarkan `claims.example.json`. Setiap klaim harus punya `claimId`, `category`, alamat `recipient`, `amount` dalam MON desimal, dan `status` (`unpaid`/`paid`). P2 hanya memberi Clear jika data klaim cocok dengan ledger dan statusnya masih `unpaid`.
+
+Untuk Jalur B live, daftarkan klaim yang sama ke kontrak dengan owner/deployer melalui `contracts/script/RegisterClaim.s.sol:RegisterClaim` sebelum bermain. Backend mengirim `keccak256(bytes(claimId))` sebagai ID klaim; kontrak mengikat ID itu ke recipient, amount, dan blok kedaluwarsa. Jika ID ada di ledger backend, backend mencocokkan `evidenceHash` on-chain dengan record tersebut sebelum mengirim proposal. Owner key hanya dipakai oleh script Foundry dan tidak disimpan di backend. Klaim yang sudah expired atau dipakai tidak dapat didaftarkan ulang dengan ID yang sama; gunakan ID baru. `evidenceHash` adalah komitmen ke record ledger, bukan bukti independen bahwa bounty atau invoice benar. Jangan gunakan alamat contoh untuk demo live.
 
 ## Aktifkan koneksi live Monad
 
-Kontrak AegisVault dan suite Foundry ada di `contracts/`. Jalankan tes dengan `forge test --root contracts`. Untuk deployment ke Monad Testnet, siapkan variabel `DEPLOYER_PRIVATE_KEY`, `WORKER_1_ADDRESS`, `GUARDIAN_1_ADDRESS`, `GUARDIAN_2_ADDRESS`, `GUARDIAN_3_ADDRESS`, `GUARDIAN_MASK`, dan `AEGIS_EXPIRY_BLOCKS`, lalu jalankan `forge script --root contracts script/Deploy.s.sol:DeployAegisVault --rpc-url https://testnet-rpc.monad.xyz --broadcast`. `GUARDIAN_MASK=1` hanya membutuhkan Guardian 1; mask `7` membutuhkan ketiganya. Simpan private key hanya di environment lokal yang aman.
+Kontrak AegisVault dan suite Foundry ada di `contracts/`. Jalankan tes dengan `forge test --root contracts`. Untuk deployment ke Monad Testnet, salin `contracts/.env.example` ke `contracts/.env`, isi variabel yang diperlukan, lalu jalankan `forge script --root contracts script/Deploy.s.sol:Deploy --rpc-url https://testnet-rpc.monad.xyz --broadcast`. Deploy demo mensyaratkan `GUARDIAN_MASK=7`. Simpan private key hanya di environment lokal yang aman.
 
-Setelah deployment, konfigurasi alamat kontrak, 1+ Worker, Guardian sesuai mask, Executor, RPC yang dapat diakses, dan saldo MON yang memadai di `.env`, lalu atur `REHEARSAL=false`. Backend memakai batas gas tetap dan tidak memanggil `eth_estimateGas`. Kontrak tidak di-deploy otomatis.
+Setelah deployment, konfigurasi alamat kontrak, 1+ Worker, tiga Guardian, Executor, RPC yang dapat diakses, dan saldo MON yang memadai di `.env`, lalu atur `REHEARSAL=false`. Backend memakai batas gas tetap dan tidak memanggil `eth_estimateGas`. Kontrak tidak di-deploy otomatis. Ledger hanya ditandai `paid` setelah kontrak mengeluarkan `ActionResolved` dengan status `EXECUTED`.
 
-Backend mengharapkan ABI/event yang disediakan kontrak: `proposeAction`, `submitDecision`, `executeAction`, `payees`, `actions`, `ActionProposed`, `Layer0Rejected`, `GuardianDecision`, dan `ActionResolved`. Alamat yang sudah dideploy harus diisi manual; backend tidak men-deploy kontrak secara otomatis.
+Backend mengharapkan ABI/event yang disediakan kontrak: `proposeAction`, `submitDecision`, `executeAction`, `payees`, `claims`, `actions`, `ActionProposed`, `Layer0Rejected`, `ClaimRejected`, `GuardianDecision`, dan `ActionResolved`. Alamat yang sudah dideploy harus diisi manual; backend tidak men-deploy kontrak secara otomatis.
 
 `RAW_DEMO_RECIPIENT` wajib diisi dengan alamat tim/testnet sebelum ronde tanpa Vault dapat mengirim transaksi; backend tidak pernah memakai alamat hasil LLM sebagai tujuan transfer langsung. Transfer langsung dibatasi maksimum 5 MON dan memakai `RAW_DEMO_AMOUNT`. `DEMO_RECIPIENT`/`DEMO_AMOUNT` dipakai tombol klaim juri.
 

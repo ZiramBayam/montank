@@ -1,10 +1,10 @@
 import {
-  createPublicClient, createWalletClient, decodeEventLog, formatEther,
-  http, keccak256, parseAbi, parseEther, toBytes, type Address, type Hash,
+  createPublicClient, createWalletClient, decodeEventLog, encodeAbiParameters, formatEther,
+  http, keccak256, parseAbi, parseEther, toBytes, zeroAddress, zeroHash, type Address, type Hash,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { config, liveChainConfigured } from './config.js';
-import type { AttackRecord, GuardianDecision, VoteResult } from './protocol.js';
+import type { AttackRecord, Claim, GuardianDecision, VoteResult } from './protocol.js';
 
 const chain = { id: 10143, name: 'Monad Testnet', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }, rpcUrls: { default: { http: [config.rpcHttp], webSocket: [config.wsPrimary] } } } as const;
 const abi = parseAbi([
@@ -13,14 +13,17 @@ const abi = parseAbi([
   'function executeAction(bytes32 actionId)',
   'function actions(bytes32 actionId) view returns (address proposer, uint96 amount, address to, uint64 expireBlock, uint8 status, bytes32 intentHash)',
   'function payees(address) view returns (bool registered, uint96 perTxCap, uint96 perWindowCap, uint96 spentInWindow, uint64 windowStartBlock)',
+  'function claims(bytes32 claimId) view returns (address recipient, uint96 amount, uint64 validUntilBlock, bytes32 evidenceHash, bytes32 activeActionId, bool used, bool cancelled)',
   'event ActionProposed(bytes32 indexed actionId, address indexed to, uint256 amount, uint64 expireBlock, bytes32 intentHash)',
   'event Layer0Rejected(bytes32 indexed actionId, address indexed to, uint256 amount, uint8 reasonCode)',
+  'event ClaimRejected(bytes32 indexed actionId, bytes32 indexed claimId, uint8 reasonCode)',
   'event GuardianDecision(bytes32 indexed actionId, uint8 indexed guardianId, bool isVeto, uint8 reasonCode)',
   'event ActionResolved(bytes32 indexed actionId, uint8 status, uint256 amount)',
 ]);
 const eventTopics = new Map<string, string>([
   [keccak256(toBytes('ActionProposed(bytes32,address,uint256,uint64,bytes32)')).toLowerCase(), 'ActionProposed'],
   [keccak256(toBytes('Layer0Rejected(bytes32,address,uint256,uint8)')).toLowerCase(), 'Layer0Rejected'],
+  [keccak256(toBytes('ClaimRejected(bytes32,bytes32,uint8)')).toLowerCase(), 'ClaimRejected'],
   [keccak256(toBytes('GuardianDecision(bytes32,uint8,bool,uint8)')).toLowerCase(), 'GuardianDecision'],
   [keccak256(toBytes('ActionResolved(bytes32,uint8,uint256)')).toLowerCase(), 'ActionResolved'],
 ]);
@@ -28,8 +31,9 @@ const eventTopics = new Map<string, string>([
 export interface ChainHooks {
   onActionProposed(actionId: `0x${string}`, log: ChainLog, attack?: AttackRecord): Promise<void> | void;
   onLayer0Rejected(actionId: `0x${string}`, reasonCode: number, txHash?: string, attack?: AttackRecord): void;
+  onClaimRejected(actionId: `0x${string}`, claimId: `0x${string}`, reasonCode: number, txHash?: string, attack?: AttackRecord): void;
   onGuardianDecision(actionId: `0x${string}`, guardianId: number, isVeto: boolean, reasonCode: number): void;
-  onActionResolved(actionId: `0x${string}`, status: number, amount: bigint, txHash?: string): void;
+  onActionResolved(actionId: `0x${string}`, status: number, amount: bigint, txHash?: string, attack?: AttackRecord): void;
   onPipeline(actionId: `0x${string}`, commitState: string, txHash?: string): void;
   onListenerStatus(status: { primary: boolean; backup: boolean; message?: string }): void;
   onTreasury(balance: string, held: string): void;
@@ -54,6 +58,7 @@ export class ChainService {
   private readonly guardianSubmissions = new Set<string>();
   private readonly seenGuardianDecisions = new Set<string>();
   private readonly handledLayer0Rejections = new Set<string>();
+  private readonly handledClaimRejections = new Set<string>();
   private readonly executedActions = new Set<string>();
   private readonly sockets = new Set<WebSocket>();
   private readonly resolved = new Set<string>();
@@ -101,15 +106,22 @@ export class ChainService {
 
   bindAction(actionId: `0x${string}`, attack: AttackRecord): void { this.actionContexts.set(actionId.toLowerCase(), attack); }
 
-  async propose(attack: AttackRecord, recipient: Address, amount: string, rehearsal = false): Promise<{ actionId: `0x${string}`; txHash?: Hash; pathA: boolean }> {
+  async propose(attack: AttackRecord, recipient: Address, amount: string, rehearsal = false, approvedClaim?: Claim): Promise<{ actionId: `0x${string}`; txHash?: Hash; pathA: boolean }> {
     const actionId = randomActionId();
-    const intentHash = keccak256(toBytes(attack.text));
+    const claimId = attack.victim?.claimId ?? '';
+    const intentHash = claimId ? keccak256(toBytes(claimId)) : zeroHash;
     attack.actionId = actionId;
     this.bindAction(actionId, attack);
     if (rehearsal || !this.configured) return { actionId, pathA: false };
     const payee = await this.publicClient.readContract({ address: config.vaultAddress, abi, functionName: 'payees', args: [recipient] });
     const pathA = payee[0];
     if (pathA) this.pathA.add(actionId.toLowerCase());
+    else if (claimId && approvedClaim?.claimId === claimId) {
+      const onChainClaim = await this.publicClient.readContract({ address: config.vaultAddress, abi, functionName: 'claims', args: [intentHash] });
+      if (onChainClaim[0] !== zeroAddress && onChainClaim[3].toLowerCase() !== claimEvidenceHash(approvedClaim).toLowerCase()) {
+        throw new Error(`On-chain evidence hash does not match claim ledger entry ${claimId}`);
+      }
+    }
     const worker = this.nextWorker();
     const client = createWalletClient({ account: worker, chain, transport: http(config.rpcHttp) });
     const txHash = await this.serialize(worker.address, () => client.writeContract({
@@ -231,14 +243,20 @@ export class ChainService {
           const context = this.actionContexts.get(actionId);
           if (context && !this.pathA.has(actionId)) {
             await this.hooks?.onActionProposed(actionId, log, context);
-            this.scheduleReconciliation(actionId);
           }
+          this.scheduleReconciliation(actionId);
         } else this.publishPipelineOnce(actionId, commitState, log.transactionHash);
       } else if (eventName === 'Layer0Rejected') {
         const actionId = String(args.actionId).toLowerCase() as `0x${string}`;
         if (commitStateRank(commitState) >= 2 && !this.handledLayer0Rejections.has(actionId)) {
           this.handledLayer0Rejections.add(actionId);
           this.hooks?.onLayer0Rejected(actionId, Number(args.reasonCode), log.transactionHash, this.actionContexts.get(actionId));
+        }
+      } else if (eventName === 'ClaimRejected') {
+        const actionId = String(args.actionId).toLowerCase() as `0x${string}`;
+        if (commitStateRank(commitState) >= 2 && !this.handledClaimRejections.has(actionId)) {
+          this.handledClaimRejections.add(actionId);
+          this.hooks?.onClaimRejected(actionId, String(args.claimId) as `0x${string}`, Number(args.reasonCode), log.transactionHash, this.actionContexts.get(actionId));
         }
       } else if (eventName === 'GuardianDecision') {
         const actionId = String(args.actionId).toLowerCase() as `0x${string}`;
@@ -309,7 +327,7 @@ export class ChainService {
     this.resolved.add(key);
     this.pendingResolved.delete(key);
     this.heldWei = this.heldWei > amount ? this.heldWei - amount : 0n;
-    this.hooks?.onActionResolved(actionId, status, amount, txHash);
+    this.hooks?.onActionResolved(actionId, status, amount, txHash, this.actionContexts.get(key));
     void this.refreshTreasury();
   }
 
@@ -341,6 +359,13 @@ export class ChainService {
       this.hooks.onTreasury(formatEther(balance), formatEther(this.heldWei));
     } catch (error) { this.hooks.onError(`Could not read vault balance: ${error instanceof Error ? error.message : String(error)}`); }
   }
+}
+
+function claimEvidenceHash(claim: Claim): Hash {
+  return keccak256(encodeAbiParameters(
+    [{ type: 'bytes32' }, { type: 'bytes32' }, { type: 'address' }, { type: 'uint96' }],
+    [keccak256(toBytes(claim.claimId)), keccak256(toBytes(claim.category)), claim.recipient, parseEther(claim.amount)],
+  ));
 }
 
 function randomActionId(): `0x${string}` {

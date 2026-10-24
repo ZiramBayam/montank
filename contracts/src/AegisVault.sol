@@ -351,10 +351,11 @@ contract AegisVault is ReentrancyGuard {
             a.status = ActionStatus.PAYOUT_FAILED;
             if (reservedClaim) c.used = false;
             emit ActionResolved(actionId, ActionStatus.PAYOUT_FAILED, amount);
-        } else if (reservedClaim) {
-            emit ClaimUsed(a.intentHash, actionId);
+        } else {
+            if (reservedClaim) emit ClaimUsed(a.intentHash, actionId);
+            emit ActionResolved(actionId, ActionStatus.EXECUTED, amount);
         }
-        // ok == true → selesai; TIDAK ada emit tambahan
+        // ok == true → selesai; status sukses ikut dicatat lewat ActionResolved.
     }
 
     function _decisionKey(bytes32 actionId, uint8 gid) internal pure returns (bytes32) {

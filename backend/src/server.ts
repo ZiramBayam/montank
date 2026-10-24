@@ -381,7 +381,7 @@ async function processAttack(attack: AttackRecord): Promise<void> {
 
   let result: Awaited<ReturnType<ChainService['propose']>>;
   try {
-    result = await chain.propose(attack, victim.recipient as Address, victim.amount, arena.room.rehearsal);
+    result = await chain.propose(attack, victim.recipient as Address, victim.amount, arena.room.rehearsal, guardians.getClaim(victim.claimId));
     attack.actionId = result.actionId;
     arena.attacksByAction.set(result.actionId.toLowerCase(), attack);
     actionContexts.set(result.actionId.toLowerCase(), arena);
@@ -430,7 +430,6 @@ async function finalizeLocalAction(attack: AttackRecord, actionId: `0x${string}`
   const bonus = anyVeto ? (clears === 1 ? 250 : clears === 2 ? 500 : 100) : 1000;
   const verdict = anyVeto ? 'VETOED' : 'EXECUTED';
   broadcast(arena, 'stage', 'pipeline', { actionId, commitState: anyVeto ? 'Finalized' : 'Finalized', measuredMs: Date.now() - attack.createdAt });
-  if (!arena.room.rehearsal && attack.victim?.claimId && !anyVeto) guardians.markPaid(attack.victim.claimId);
   const breakdown = anyVeto
     ? [`${clears} of ${votes.length} guards cleared; action vetoed: +${bonus}`]
     : [`All ${votes.length} active guards cleared; full execution: +${bonus}`];
@@ -513,6 +512,20 @@ chain.setHooks({
     broadcast(owner, 'stage', 'pipeline', { actionId, commitState: 'Finalized', txHash, measuredMs: Date.now() - attack.createdAt });
     sendAttackResult(attack, 'LAYER0', 'REJECTED', 50, [`Layer 0 rejected proposal (reason ${reasonCode}): +50`]);
   },
+  onClaimRejected(actionId, claimId, reasonCode, txHash, contextAttack) {
+    const key = actionId.toLowerCase();
+    const arena = actionContexts.get(key) ?? getArena(contextAttack?.roomCode);
+    const attack = contextAttack ?? arena?.attacksByAction.get(key);
+    if (!attack) return;
+    const owner = getArena(attack.roomCode) ?? arena;
+    if (!owner) return;
+    actionContexts.set(key, owner);
+    owner.attacksByAction.set(key, attack);
+    owner.p3ByAttack.delete(attack.attackId);
+    broadcast(owner, 'stage', 'pipeline', { actionId, commitState: 'Finalized', txHash, measuredMs: Date.now() - attack.createdAt });
+    const reason = ({ 1: 'claim not registered', 2: 'recipient or amount mismatch', 3: 'claim expired or cancelled', 4: 'claim already used or reserved' } as Record<number, string>)[reasonCode] ?? `unknown reason ${reasonCode}`;
+    sendAttackResult(attack, 'LAYER0', 'CLAIM_REJECTED', 50, [`On-chain claim ${claimId} rejected: ${reason} (+50)`]);
+  },
   onGuardianDecision(actionId, guardianId, isVeto, reasonCode) {
     guardianLastSeen.set(guardianId, Date.now());
     const key = actionId.toLowerCase();
@@ -525,13 +538,17 @@ chain.setHooks({
     const entry: VoteResult = { guardianId, decision: isVeto ? 'VETO' : 'CLEAR', reasonCode, ms: 0 };
     arena.votesByAction.set(key, [...votes.filter((vote) => vote.guardianId !== guardianId), entry]);
   },
-  onActionResolved(actionId, status, _amount, txHash) {
+  onActionResolved(actionId, status, _amount, txHash, contextAttack) {
     const key = actionId.toLowerCase();
-    const arena = actionContexts.get(key);
-    const attack = arena?.attacksByAction.get(key);
+    const arena = actionContexts.get(key) ?? getArena(contextAttack?.roomCode);
+    const attack = contextAttack ?? arena?.attacksByAction.get(key);
+    if (arena && attack) {
+      actionContexts.set(key, arena);
+      arena.attacksByAction.set(key, attack);
+    }
     if (attack && arena) broadcast(arena, 'stage', 'pipeline', { actionId, commitState: 'Finalized', txHash, measuredMs: Date.now() - attack.createdAt });
     if (attack && chain.isRegisteredAction(actionId)) {
-      sendAttackResult(attack, 'GUARDIAN', 'REGISTERED_PAYEE', 0, ['Registered payee path completed without guardian scoring']);
+      sendAttackResult(attack, 'GUARDIAN', status === 3 ? 'REGISTERED_PAYEE' : 'PAYOUT_FAILED', 0, ['Registered payee path completed without guardian scoring']);
       return;
     }
     enterActionResolved(actionId, status);
@@ -558,7 +575,7 @@ async function hostClaim(arena: ArenaContext, path: 'A' | 'B'): Promise<void> {
     tricked: true, reason: `Host judge claim ${path}`, claimId: claim?.claimId ?? '', category: claim?.category ?? 'vendor',
     recipient, amount: path === 'A' ? config.demoAmount : claim!.amount, source: 'rehearsal',
   };
-  const proposed = await chain.propose(attack, recipient, attack.victim.amount, arena.room.rehearsal);
+  const proposed = await chain.propose(attack, recipient, attack.victim.amount, arena.room.rehearsal, claim ? guardians.getClaim(claim.claimId) : undefined);
   attack.actionId = proposed.actionId;
   arena.attacksByAction.set(proposed.actionId.toLowerCase(), attack);
   actionContexts.set(proposed.actionId.toLowerCase(), arena);

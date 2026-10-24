@@ -24,6 +24,8 @@ export class GuardianService {
     }
   }
 
+  getClaim(claimId: string): Claim | undefined { return this.claims.get(claimId); }
+
   async evaluate(attack: AttackRecord, victim: VictimResult, rehearsal: boolean, p3Promise?: Promise<P3Result>): Promise<VoteResult[]> {
     const p3Start = performance.now();
     const [p1, p2, p3] = await Promise.all([
