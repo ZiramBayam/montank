@@ -258,7 +258,7 @@ export default function Play() {
     <div className="play joined">
       <header className="phead">
         <span className="me">
-          <Sprite name="shield" size={22} />
+          <Sprite name="logo" size={22} />
           <b>{nick}</b>
         </span>
         <span className="me-stats">
