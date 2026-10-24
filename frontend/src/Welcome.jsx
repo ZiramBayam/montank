@@ -79,12 +79,12 @@ export default function Welcome() {
               <input
                 autoFocus
                 value={joinInput}
-                onChange={(e) => setJoinInput(e.target.value)}
+                onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") goJoin();
                 }}
                 placeholder="PF-XXXX"
-                maxLength={6}
+                maxLength={7}
                 autoCapitalize="characters"
                 autoComplete="off"
               />
