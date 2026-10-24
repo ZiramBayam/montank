@@ -98,7 +98,7 @@ function broadcast(channel: 'play' | 'stage' | 'host' | 'all', type: string, pay
 
 function broadcastState(force = false): void {
   const state = room.gameState();
-  const signature = `${state.phase}:${state.vaultOn}:${state.rehearsal}:${state.panicBlur}:${state.manualAttacksEnabled}`;
+  const signature = `${state.phase}:${state.vaultOn}:${state.rehearsal}:${state.panicBlur}`;
   const now = Date.now();
   if (!force && signature === lastStateSignature && now - lastStateSentAt < 1000) return;
   lastStateSignature = signature;
@@ -152,7 +152,6 @@ function hostStatus(): Record<string, unknown> {
   return {
     state: room.gameState(), players: room.players.size, queue: room.queue.length,
     listener, liveChain: chain.configured, treasury: currentTreasury,
-    manualAttacksEnabled: room.manualAttacksEnabled,
     guardians: Array.from({ length: config.guardianMask === 1 ? 1 : 3 }, (_, index) => ({
       guardianId: index + 1,
       configured: room.rehearsal || Boolean(config.guardianPrivateKeys[index]),
@@ -524,8 +523,6 @@ async function hostCommand(cmd: string, data: Record<string, unknown>): Promise<
     broadcast('host', 'host_notice', { message: 'REFILL adalah penanda operasional saja. Isi ulang vault lewat wallet tim; backend tidak mengirim dana secara implisit.' });
   } else if (cmd === 'REHEARSAL') {
     room.rehearsal = data.enabled === undefined ? !room.rehearsal : Boolean(data.enabled);
-  } else if (cmd === 'MANUAL_ATTACKS') {
-    room.manualAttacksEnabled = Boolean(data.enabled);
   } else throw new Error('Unknown host command');
   broadcastState(true);
   broadcast('host', 'host_status', hostStatus());
@@ -558,7 +555,7 @@ function protocolMessage(client: Client, raw: string): void {
     if (room.queue.length >= config.queueMax) { push(client, 'attack_rejected', { reason: 'QUEUE_FULL' }); return; }
     if (player.cooldownUntil > Date.now()) { push(client, 'attack_rejected', { reason: 'COOLDOWN' }); return; }
     if (room.queuedForPlayer(player.playerId)) { push(client, 'attack_rejected', { reason: 'ACTIVE_ATTACK' }); return; }
-    const parsed = validateAttack(message.payload, message.manual, room.manualAttacksEnabled);
+    const parsed = validateAttack(message.payload, message.manual);
     if (!parsed.ok) { push(client, 'attack_rejected', { reason: parsed.reason }); return; }
     const attack = newAttack(player.playerId, player.nickname, parsed.text, parsed.payload);
     queueAttack(attack);

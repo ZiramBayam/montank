@@ -63,7 +63,6 @@ export interface GameState {
   phase: Phase;
   tMsLeft: number;
   vaultOn: boolean;
-  manualAttacksEnabled: boolean;
   rehearsal: boolean;
   panicBlur: boolean;
 }

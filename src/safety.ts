@@ -23,7 +23,7 @@ export function buildAttackText(payload: AttackPayload): string {
   return [payload.kedok, payload.alasan, payload.taktik].filter(Boolean).join('. ').slice(0, MANUAL_MAX_LENGTH);
 }
 
-export function validateAttack(payload: unknown, manual: unknown, manualEnabled: boolean): { ok: true; text: string; payload: AttackPayload } | { ok: false; reason: string } {
+export function validateAttack(payload: unknown, manual: unknown): { ok: true; text: string; payload: AttackPayload } | { ok: false; reason: string } {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { ok: false, reason: 'INVALID_PAYLOAD' };
   const raw = payload as Record<string, unknown>;
   const normalized: AttackPayload = {};
@@ -34,7 +34,6 @@ export function validateAttack(payload: unknown, manual: unknown, manualEnabled:
   }
   if (manual !== undefined && typeof manual !== 'string') return { ok: false, reason: 'INVALID_PAYLOAD' };
   const usesManual = typeof manual === 'string' && manual.length > 0;
-  if (usesManual && !manualEnabled) return { ok: false, reason: 'MANUAL_DISABLED' };
   if (usesManual && manual.length > MANUAL_MAX_LENGTH) return { ok: false, reason: 'MANUAL_TOO_LONG' };
   if (!usesManual && (!normalized.kedok || !normalized.alasan || !normalized.taktik)) return { ok: false, reason: 'INVALID_PAYLOAD' };
   const text = usesManual ? manual as string : buildAttackText(normalized);

@@ -20,7 +20,6 @@ export const config = {
   trustProxy: bool('TRUST_PROXY', false),
   rehearsal: bool('REHEARSAL', true),
   rehearsalVictimTricked: bool('REHEARSAL_VICTIM_TRICKED', true),
-  manualAttacksEnabled: bool('MANUAL_ATTACKS_ENABLED', false),
   panicBlur: bool('PANIC_BLUR', false),
   geminiApiKey: process.env.GEMINI_API_KEY ?? '',
   geminiModel: process.env.GEMINI_MODEL ?? 'gemini-2.5-flash-lite',

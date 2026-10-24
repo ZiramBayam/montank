@@ -18,7 +18,6 @@ export class Room {
   phaseStartedAt = Date.now();
   phaseDuration = PHASE_DURATIONS.LOBBY_OPEN;
   vaultOn = false;
-  manualAttacksEnabled = config.manualAttacksEnabled;
   rehearsal = config.rehearsal;
   panicBlur = config.panicBlur;
   globalQueueEpoch = 0;
@@ -165,7 +164,6 @@ export class Room {
       phase: this.phase,
       tMsLeft: Math.max(0, this.phaseDuration - (Date.now() - this.phaseStartedAt)),
       vaultOn: this.vaultOn,
-      manualAttacksEnabled: this.manualAttacksEnabled,
       rehearsal: this.rehearsal,
       panicBlur: this.panicBlur,
     };

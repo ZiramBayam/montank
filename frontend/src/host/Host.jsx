@@ -95,9 +95,6 @@ export default function Host() {
           <button className="btn btn--stop" onClick={() => act(api.panic, HONEST.SENSOR)} disabled={readOnly}>
             Panic Blur [Spacebar]
           </button>
-          <button className={`btn ${state.manualAttacksEnabled ? "btn--primary" : ""}`} onClick={() => act(() => api.host.manualAttacks(!state.manualAttacksEnabled), `manual attacks ${state.manualAttacksEnabled ? "off" : "on"}`)} disabled={readOnly}>
-            Manual attacks: {state.manualAttacksEnabled ? "ON" : "OFF"}
-          </button>
         </div>
         <p className="dim">
           Every host action adds honesty labels to the kill-feed: [{HONEST.TEAMATTACK}] [{HONEST.SIM}].

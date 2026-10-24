@@ -244,7 +244,6 @@ export function BusProvider({ children, role: appRole }) {
         claimVendorB: () => send({ type: "host_cmd", cmd: "JUDGE_CLAIM_B" }),
         teamAttack: () => send({ type: "host_cmd", cmd: "SAMPLE_ATTACK" }),
         crowd: () => send({ type: "host_cmd", cmd: "SIM_CROWD", count: 5 }),
-        manualAttacks: (enabled) => send({ type: "host_cmd", cmd: "MANUAL_ATTACKS", enabled }),
       },
     }),
     [send],
@@ -278,7 +277,6 @@ function applyLocalMessage(message, push, ref) {
       SAMPLE_ATTACK: "host:teamAttack", SIM_CROWD: "host:crowd",
     };
     if (message.cmd === "PANIC_BLUR") applyHost("panic", {}, push, ref);
-    else if (message.cmd === "MANUAL_ATTACKS") push((previous) => ({ ...previous, manualAttacksEnabled: Boolean(message.enabled) }));
     else if (map[message.cmd]) applyHost(map[message.cmd], message, push, ref);
   }
 }
@@ -287,7 +285,7 @@ function mapServerState(server = {}, prev = initial()) {
   const phase = server.phase ?? prev.phase;
   const duration = DURATIONS[phase] ?? 60_000;
   return { phase, startedAt: Date.now() - Math.max(0, duration - (server.tMsLeft ?? duration)), vaultOn: !!server.vaultOn,
-    panic: !!server.panicBlur, virtual: !!server.rehearsal, manualAttacksEnabled: !!server.manualAttacksEnabled };
+    panic: !!server.panicBlur, virtual: !!server.rehearsal };
 }
 function mergePlayers(previous, rows = []) {
   return Object.fromEntries(rows.map((p) => [p.nickname, { score: p.score ?? 0 }]));

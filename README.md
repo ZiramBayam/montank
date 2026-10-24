@@ -39,15 +39,15 @@ Default `REHEARSAL=true`: LLM diganti stub lokal, tidak ada transaksi RPC, dan `
 
 Kode undangan yang sama dipakai seluruh peserta dan disimpan di `data/room-invite.json` agar tetap berlaku setelah backend restart. Backend saat ini menjalankan satu arena aktif; kode ini adalah tautan masuk, bukan pemisah beberapa room.
 
-Host tanpa token hanya menerima status dan tidak bisa mengirim perintah. Serangan dari kartu cepat bisa digunakan langsung; input prompt bebas perlu diaktifkan lewat tombol `Manual attacks` di panel host.
+Host tanpa token hanya menerima status dan tidak bisa mengirim perintah. Peserta dapat memakai kartu cepat atau mengirim prompt bebas hingga 1.000 karakter selama ronde aktif. Prompt bebas tidak bergantung pada pengaturan host; filter konten dan batas panjang tetap berlaku.
 
 ## Protokol singkat
 
 `/play` menerima `join {nickname}`, `rejoin {playerId}`, dan `attack {payload, manual?}`. Nickname mengikuti `^[a-zA-Z0-9_]{2,12}$`. Nama tabrakan diberi suffix. Batas awal: 40 pemain, 3 join/IP, 1 serangan aktif per pemain, antrean maksimum 12, cooldown 5 detik setelah hasil, dan prompt manual maksimum 1.000 karakter.
 
-`/host` menerima `host_cmd {cmd, ...}`. Perintah yang tersedia: `ROUND1`, `VAULT_ON`, `JUDGE_CLAIM_A`, `JUDGE_CLAIM_B`, `SIM_CROWD`, `SAMPLE_ATTACK`, `PANIC_BLUR`, `REFILL`, `REHEARSAL`, `MANUAL_ATTACKS`, dan `GOTO:<phase>`. `REFILL` hanya memberi pengingat; backend tidak mengirim dana untuk refill.
+`/host` menerima `host_cmd {cmd, ...}`. Perintah yang tersedia: `ROUND1`, `VAULT_ON`, `JUDGE_CLAIM_A`, `JUDGE_CLAIM_B`, `SIM_CROWD`, `SAMPLE_ATTACK`, `PANIC_BLUR`, `REFILL`, `REHEARSAL`, dan `GOTO:<phase>`. `REFILL` hanya memberi pengingat; backend tidak mengirim dana untuk refill.
 
-Panic Blur aktif/nonaktif dengan `PANIC_BLUR`. Teks manual terkunci kecuali operator menjalankan `MANUAL_ATTACKS` dengan `{ "enabled": true }`; filter konten tetap berlaku. Disarankan tidak mengaktifkan input manual sampai host dapat mengoperasikan blur pada UI panggung.
+Panic Blur aktif/nonaktif dengan `PANIC_BLUR`. Prompt bebas selalu tersedia selama ronde aktif. Filter konten tetap berlaku sebelum prompt ditampilkan pada `/stage`.
 
 ## Ledger klaim
 
