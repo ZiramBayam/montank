@@ -1,5 +1,4 @@
-// Halaman pembuka: CREATE ROOM / JOIN ROOM. Kode undangan dikelola server (lintas perangkat).
-// CREATE membuat sesi baru dan membuka panel host; peserta masuk melalui kode/QR.
+// Halaman pembuka untuk bergabung ke room menggunakan kode undangan.
 import { useState } from "react";
 import Sprite from "./components/Sprite.jsx";
 import { isRoomCode } from "./state/room.js";
@@ -10,29 +9,8 @@ export default function Welcome() {
   const invitedRoom = params.get("room") || "";
   const leftRoom = params.get("left") === "1";
   const [joinInput, setJoinInput] = useState(() => invitedRoom.toUpperCase());
-  const [findOpen, setFindOpen] = useState(() => Boolean(invitedRoom));
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-
-  const create = async () => {
-    setErr("");
-    setBusy(true);
-    try {
-      const response = await fetch("/api/rooms", { method: "POST" });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message || "Room service unavailable");
-      if (!isRoomCode(result.roomCode)) throw new Error("Invalid room code");
-      if (typeof result.ownerToken !== "string" || result.ownerToken.length < 32) throw new Error("Owner session could not be secured. Try again.");
-      const player = new URL("/play", window.location.origin);
-      player.searchParams.set("room", result.roomCode);
-      player.searchParams.set("owner", result.ownerToken);
-      window.location.href = player.toString();
-    } catch (error) {
-      setErr(error instanceof Error ? error.message : "Server room tidak dapat dijangkau. Coba lagi saat koneksi tersedia.");
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const goJoin = async () => {
     const code = joinInput.toUpperCase().trim();
@@ -81,43 +59,24 @@ export default function Welcome() {
 
       <section className="wselect card">
         {leftRoom && <p className="wnotice" role="status">Kamu sudah keluar dari room{invitedRoom ? ` ${invitedRoom}` : ""}. Masukkan kembali kode undangan untuk bergabung lagi.</p>}
-        <button className="btn btn--primary big" onClick={create} disabled={busy}>
-          CREATE ROOM
-        </button>
-        <button
-          className="btn btn--go big"
-          onClick={() => {
-            setErr("");
-            setFindOpen((o) => !o);
-          }}
-        >
-          JOIN ROOM
-        </button>
-        {findOpen && (
-          <div className="wfind">
-            <input
-              autoFocus
-              value={joinInput}
-              onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") goJoin();
-              }}
-              placeholder="PF-XXXX"
-              maxLength={7}
-              autoCapitalize="characters"
-              autoComplete="off"
-            />
-            <button className="btn btn--coin big" onClick={goJoin} disabled={busy}>
-              JOIN →
-            </button>
-          </div>
-        )}
+        <form className="wfind" onSubmit={(event) => { event.preventDefault(); void goJoin(); }}>
+          <label htmlFor="room-code">Kode undangan</label>
+          <input
+            id="room-code"
+            autoFocus
+            value={joinInput}
+            onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
+            placeholder="PF-XXXX"
+            maxLength={7}
+            autoCapitalize="characters"
+            autoComplete="off"
+          />
+          <button className="btn btn--coin big" type="submit" disabled={busy || !joinInput.trim()}>
+            {busy ? "MEMERIKSA…" : "GABUNG ROOM →"}
+          </button>
+        </form>
         {err && <p className="werr">{err}</p>}
       </section>
-
-      <p className="footnote dim">
-        Pembuat room ikut bermain sebagai peserta dan mendapat tombol mulai di lobby. Bagikan kode/QR dari layar pemain.
-      </p>
     </div>
   );
 }

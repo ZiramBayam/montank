@@ -34,6 +34,12 @@
 .welcome .btn { min-height: 48px; }
 
 .wfind { display: flex; flex-direction: column; gap: 10px; }
+.wfind label {
+  color: var(--paper-dim);
+  font-family: var(--f-display);
+  font-size: 0.72rem;
+  text-align: left;
+}
 .welcome input {
   font-family: var(--f-pixel);
   font-size: 1.2rem;
@@ -64,11 +70,4 @@
   color: var(--yellow);
   font-size: 0.9rem;
   line-height: 1.5;
-}
-
-.welcome .footnote {
-  max-width: 54ch;
-  font-size: 0.8rem;
-  line-height: 1.6;
-  margin: 0;
 }
