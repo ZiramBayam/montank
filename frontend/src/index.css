@@ -131,9 +131,11 @@ button, .ccard { touch-action: manipulation; user-select: none; -webkit-user-sel
 @keyframes blink-closed { 0%, 91% { opacity: 0; } 92%, 96% { opacity: 1; } 97%, 100% { opacity: 0; } }
 @keyframes led-off      { 0%, 78% { opacity: 0; } 79%, 94% { opacity: 1; } 95%, 100% { opacity: 0; } }
 @keyframes mini-pulse   { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+@keyframes breathe-closed { 0%, 41% { opacity: 0; } 42%, 100% { opacity: 1; } }
 
 .idle-bob { animation: idle-bobs 1.3s infinite; }
 .flick { animation: blink-closed 4.6s infinite; }
+.bff   { animation: breathe-closed 2.8s infinite; }
 
 .blink-idle { animation: step-blink 1s steps(2, jump-none) infinite; }
 .slide-in-8 { animation: step-rise var(--step-1) steps(3, jump-end) both; }
@@ -143,7 +145,7 @@ button, .ccard { touch-action: manipulation; user-select: none; -webkit-user-sel
 @media (prefers-reduced-motion: reduce) {
   .blink-idle, .slide-in-8, .coin-pop, .flash-red,
   .idle-bob, .flick, .gseat .sprite, .vled, .gheart { animation: none !important; }
-  .mkover.flick { opacity: 0 !important; }
+  .mkover.flick, .mkover.bff { opacity: 0 !important; }
 }
 
 /* Hati penjaga */

@@ -127,8 +127,11 @@ function TopBar({ state, leftS, mode }) {
       <span className="banner card card--flat">
         <span className="msprite idle-bob">
           <Sprite name="mascot" size={22} />
-          <span className="mkover flick">
+          <span className="mkover flick" style={{ animationDelay: "2.4s" }}>
             <Sprite name="mascotB" size={22} />
+          </span>
+          <span className="mkover bff" style={{ animationDelay: "1.1s" }}>
+            <Sprite name="mascotC" size={22} />
           </span>
         </span>{" "}
         The Cashier Agent is intentionally gullible.

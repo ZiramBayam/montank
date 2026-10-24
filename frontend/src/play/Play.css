@@ -241,6 +241,58 @@
 }
 
 /* tuning HP kecil (≤480px) */
+/* ===== 6 ruang tunggu (fase LOBBY) ===== */
+.wroom {
+  padding: 18px 16px calc(20px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  text-align: center;
+}
+.wroom h1 { color: var(--yellow); font-size: 1.5rem; margin: 0; }
+.wroomrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.wroom .wcode { font-size: 2rem; letter-spacing: 0.1em; line-height: 1; cursor: pointer; }
+.wroom .wcode:active { transform: translateY(2px); }
+.wcopied { margin: 0; color: var(--green); font-family: var(--f-score); font-size: 0.95rem; }
+.wqr {
+  width: 184px;
+  height: auto;
+  margin: 4px auto 0;
+  background: var(--paper);
+  padding: 8px;
+  border: var(--border);
+  image-rendering: pixelated;
+}
+.wqrnote { font-size: 0.8rem; margin: 2px 0 0; }
+.wrmasc { position: relative; display: inline-flex; margin-top: 4px; }
+.wlist { width: 100%; display: flex; flex-direction: column; }
+.wlrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.6);
+  font-size: 0.95rem;
+  text-align: left;
+}
+.wlrow:last-child { border-bottom: none; }
+.wlrow .score { margin-left: auto; }
+.wlrow .badge { font-size: 0.7rem; }
+.wroomhint {
+  width: 100%;
+  text-align: left;
+  list-style: none;
+  padding: 12px 2px 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  border-top: 2px solid rgba(0, 0, 0, 0.6);
+}
+
 @media (max-width: 480px) {
   .play { gap: 10px; padding-left: 10px; padding-right: 10px; }
   .phead { padding: 8px 10px; }
