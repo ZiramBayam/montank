@@ -4,7 +4,7 @@ Montank adalah game multiplayer tentang pertahanan wallet. Pemain mengirim promp
 
 ## Demo publik
 
-- **Aplikasi live:** belum tersedia; tambahkan URL Render setelah Web Service selesai dideploy.
+- **Aplikasi live:** https://actions-coverage-secretariat-notify.trycloudflare.com/
 - **Repo publik:** [github.com/ZiramBayam/montank](https://github.com/ZiramBayam/montank)
 
 ## Kontrak Monad Testnet
